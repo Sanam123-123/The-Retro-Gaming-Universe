@@ -160,7 +160,7 @@ function setStickPositionFromDx(dx){
   touchMove = dx/120;
 }
 
-// Touch events (older fallback)
+// Touch events
 joy.ontouchmove = e => {
   const r=joy.getBoundingClientRect();
   let dx = e.touches[0].clientX - r.left - 160;
@@ -177,7 +177,7 @@ joy.ontouchend = e => {
 let pointerDown=false;
 joy.addEventListener('pointerdown', (e)=>{
   pointerDown=true;
-  joy.setPointerCapture(e.pointerId);
+  try{ joy.setPointerCapture(e.pointerId); }catch(err){}
 });
 joy.addEventListener('pointermove', (e)=>{
   if(!pointerDown) return;
@@ -205,7 +205,7 @@ fireBtn.addEventListener('touchend', e=>{ fire=false; e.preventDefault(); }, {pa
 fireBtn.addEventListener('mousedown', e=>{ fire=true; e.preventDefault(); });
 window.addEventListener('mouseup', e=>{ fire=false; });
 
-/* Canvas as alternate fire area (desktop users) */
+// Canvas as alternate fire area (desktop users)
 canvas.addEventListener('mousedown', e=>{ fire=true; });
 window.addEventListener('mouseup', e=>{ fire=false; });
 
@@ -213,7 +213,7 @@ window.addEventListener('mouseup', e=>{ fire=false; });
    Keyboard controls
    ------------------------- */
 window.addEventListener('keydown', e=>{
-  if(e.repeat) return; // ignore held repeat here; we'll maintain state on keyup
+  // allow repeat for smooth movement
   const k = e.key.toLowerCase();
   if(k==='arrowleft' || k==='left' || k==='a'){
     keyboardMove = -1;
@@ -254,7 +254,9 @@ canvas.addEventListener('click', ()=> canvas.focus());
 retryBtn.addEventListener('click', restartGame);
 
 function restartGame(){
+  // Stop current animation
   cancelAnimationFrame(animationId);
+  // Reset game state
   score=0;
   boss=null;
   bossStage=0;
@@ -265,6 +267,11 @@ function restartGame(){
   player.hp=player.maxHp;
   gameOver=false;
   retryBtn.style.display="none";
+  // reset input states
+  keyboardMove=0;
+  touchMove=0;
+  fire=false;
+  // restart loop
   loop();
 }
 
@@ -483,24 +490,14 @@ function loop(){
   if(!gameOver) animationId=requestAnimationFrame(loop);
 }
 
+/* start spawns and loop */
 setInterval(spawnFormation,3500);
 loop();
 
 /* -------------------------
    Accessibility: allow retry via keyboard even if not focused
    ------------------------- */
-function restartGame(){
-  restartGame; // placeholder for function binding - not used
-}
-
-/* -------------------------
-   Ensure R or Enter works for retry even without focus
-   ------------------------- */
-window.addEventListener('keydown', e=>{
-  if((e.key.toLowerCase()==='r' || e.key==='Enter') && gameOver){
-    restartGame();
-  }
-});
+/* (we already wired R/Enter above). The restartGame function is defined and used) */
 
 /* -------------------------
    Prevent arrow keys from scrolling the page

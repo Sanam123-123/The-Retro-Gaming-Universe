@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlockBlast</title>
+<style>
+    .back-btn{
+  position:fixed;
+  top:15px;
+  left:15px;
+  z-index:9999;
+  text-decoration:none;
+  font-size:26px;
+  color:white;
+  background:rgba(0,0,0,0.6);
+  padding:8px 14px;
+  border-radius:50%;
+  border:2px solid white;
+}
+
+.back-btn:active{
+  background:white;
+  color:black;
+}
+  body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #222;
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    user-select: none;
+    overflow: hidden;
+  }
+  .game-container {
+    position: relative;
+    width: 100%;
+    max-width: 600px;
+  }
+  canvas {
+    background-color: #111;
+    border: 2px solid #fff;
+    display: block;
+    width: 100%;   /* visual size */
+    height: auto;  /* maintain aspect ratio */
+    touch-action: none;
+  }
+  .overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background-color: rgba(0,0,0,0.85);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+  }
+  .overlay h1 { margin-bottom: 20px; text-align: center; }
+  .overlay p { margin-bottom: 20px; text-align: center; }
+  .overlay button {
+    padding: 12px 20px;
+    font-size: 18px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    background-color: #00ffea;
+    color: #111;
+  }
+</style>
+</head>
+<body><a href="index.html" class="back-btn">←</a>
+<div class="game-container">
+  <canvas id="gameCanvas" width="600" height="400"></canvas>
+
+  <div id="startScreen" class="overlay">
+    <h1>BlockBlast</h1>
+    <p>Slide the paddle to break all the blocks!</p>
+    <button id="startBtn">Start Game</button>
+  </div>
+
+  <div id="gameOverScreen" class="overlay" style="display:none;">
+    <h1>Game Over</h1>
+    <button id="retryBtn">Retry</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+// Paddle
+const paddle = { width: 100, height: 10, x: canvas.width/2 - 50, y: canvas.height - 20 };
+let targetPaddleX = paddle.x;
+
+// Ball
+const ball = { x: canvas.width/2, y: canvas.height - 30, radius: 8, dx: 4, dy: -4 };
+
+// Blocks
+const blockRowCount = 5;
+const blockColumnCount = 8;
+const blockWidth = 60;
+const blockHeight = 20;
+const blockPadding = 10;
+const blockOffsetTop = 30;
+const blockOffsetLeft = 30;
+
+let blocks = [];
+let score = 0;
+let gameRunning = false;
+
+function initBlocks() {
+  blocks = [];
+  for(let c=0;c<blockColumnCount;c++){
+    blocks[c]=[];
+    for(let r=0;r<blockRowCount;r++){
+      blocks[c][r]={x:0,y:0,status:1};
+    }
+  }
+}
+initBlocks();
+
+function drawPaddle(){
+  ctx.fillStyle="#00ffea";
+  ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
+}
+function drawBall(){
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI*2);
+  ctx.fillStyle="#ff0040";
+  ctx.fill();
+  ctx.closePath();
+}
+function drawBlocks(){
+  for(let c=0;c<blockColumnCount;c++){
+    for(let r=0;r<blockRowCount;r++){
+      if(blocks[c][r].status===1){
+        const blockX=c*(blockWidth+blockPadding)+blockOffsetLeft;
+        const blockY=r*(blockHeight+blockPadding)+blockOffsetTop;
+        blocks[c][r].x=blockX;
+        blocks[c][r].y=blockY;
+        ctx.fillStyle="#ffcc00";
+        ctx.fillRect(blockX, blockY, blockWidth, blockHeight);
+      }
+    }
+  }
+}
+function drawScore(){
+  ctx.font="16px Arial";
+  ctx.fillStyle="#fff";
+  ctx.fillText("Score: "+score, 8, 20);
+}
+function collisionDetection(){
+  for(let c=0;c<blockColumnCount;c++){
+    for(let r=0;r<blockRowCount;r++){
+      const b=blocks[c][r];
+      if(b.status===1){
+        if(ball.x>b.x && ball.x<b.x+blockWidth &&
+           ball.y>b.y && ball.y<b.y+blockHeight){
+          ball.dy=-ball.dy;
+          b.status=0;
+          score++;
+          if(score===blockRowCount*blockColumnCount){
+            alert("YOU WIN!");
+            showGameOverScreen();
+          }
+        }
+      }
+    }
+  }
+}
+
+function draw(){
+  if(!gameRunning) return;
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawBlocks();
+  drawBall();
+  drawPaddle();
+  drawScore();
+  collisionDetection();
+
+  // Smooth paddle movement
+  paddle.x += (targetPaddleX - paddle.x) * 0.25; // Smoothness factor
+
+  // Ball movement
+  ball.x+=ball.dx;
+  ball.y+=ball.dy;
+
+  // Wall collision
+  if(ball.x+ball.radius>canvas.width || ball.x-ball.radius<0) ball.dx=-ball.dx;
+  if(ball.y-ball.radius<0) ball.dy=-ball.dy;
+  else if(ball.y+ball.radius>canvas.height){
+    if(ball.x>paddle.x && ball.x<paddle.x+paddle.width){
+      ball.dy=-ball.dy;
+    }else{
+      showGameOverScreen();
+    }
+  }
+
+  requestAnimationFrame(draw);
+}
+
+function resetGame(){
+  ball.x=canvas.width/2;
+  ball.y=canvas.height-30;
+  ball.dx=4;
+  ball.dy=-4;
+  paddle.x=canvas.width/2 - paddle.width/2;
+  targetPaddleX = paddle.x;
+  score=0;
+  initBlocks();
+  gameRunning=true;
+  draw();
+}
+
+// Convert pointer to canvas coordinates
+function getPointerX(evt){
+  const rect = canvas.getBoundingClientRect();
+  let clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
+  return (clientX - rect.left) * (canvas.width / rect.width);
+}
+
+function movePaddleWithPointer(x){
+  targetPaddleX = x - paddle.width/2;
+  if(targetPaddleX < 0) targetPaddleX = 0;
+  if(targetPaddleX + paddle.width > canvas.width) targetPaddleX = canvas.width - paddle.width;
+}
+
+// Mouse / Touch
+canvas.addEventListener("mousemove", (e)=>{
+  if(gameRunning) movePaddleWithPointer(getPointerX(e));
+});
+canvas.addEventListener("touchmove", (e)=>{
+  e.preventDefault();
+  if(gameRunning) movePaddleWithPointer(getPointerX(e));
+},{passive:false});
+
+// Screens
+const startScreen=document.getElementById("startScreen");
+const gameOverScreen=document.getElementById("gameOverScreen");
+
+document.getElementById("startBtn").addEventListener("click", ()=>{
+  startScreen.style.display="none";
+  resetGame();
+});
+
+document.getElementById("retryBtn").addEventListener("click", ()=>{
+  gameOverScreen.style.display="none";
+  resetGame();
+});
+
+function showGameOverScreen(){
+  gameRunning=false;
+  gameOverScreen.style.display="flex";
+}
+</script>
+</body>
+</html>

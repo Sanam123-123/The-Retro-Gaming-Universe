@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Neon Blaster – Stage 3</title>
+<style>
+    .back-btn{
+  position:fixed;
+  top:15px;
+  left:15px;
+  z-index:9999;
+  text-decoration:none;
+  font-size:26px;
+  color:white;
+  background:rgba(0,0,0,0.6);
+  padding:8px 14px;
+  border-radius:50%;
+  border:2px solid white;
+}
+
+.back-btn:active{
+  background:white;
+  color:black;
+}
+body{
+  margin:0;
+  background:black;
+  overflow:hidden;
+  touch-action:none;
+  font-family:monospace;
+}
+canvas{
+  display:block;
+  margin:auto;
+  border:6px solid #ff00ff;
+  background:linear-gradient(#050014,#000);
+}
+
+/* MASSIVE CONTROLS */
+#joystick{
+  position:fixed;
+  bottom:30px;
+  left:30px;
+  width:320px;
+  height:320px;
+  border-radius:50%;
+  background:rgba(0,255,255,.2);
+}
+#stick{
+  position:absolute;
+  left:120px;
+  top:120px;
+  width:80px;
+  height:80px;
+  border-radius:50%;
+  background:#00ffff;
+}
+#fireBtn{
+  position:fixed;
+  bottom:50px;
+  right:50px;
+  width:200px;
+  height:200px;
+  border-radius:50%;
+  background:rgba(255,0,255,.4);
+  color:white;
+  font-size:32px;
+  border:none;
+}
+
+/* RETRY */
+#retry{
+  position:fixed;
+  top:65%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  padding:24px 60px;
+  font-size:28px;
+  background:#ff00ff;
+  color:white;
+  border:none;
+  display:none;
+}
+</style>
+</head>
+<body><a href="index.html" class="back-btn">←</a>
+
+<canvas id="game" width="800" height="500"></canvas>
+<div id="joystick"><div id="stick"></div></div>
+<button id="fireBtn">🔥 FIRE</button>
+<button id="retry">RETRY</button>
+
+<script>
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+const fireBtn=document.getElementById("fireBtn");
+const retryBtn=document.getElementById("retry");
+
+let animationId=null;
+let score=0;
+let move=0;
+let fire=false;
+let gameOver=false;
+let boss=null;
+let bossStage=0;
+
+/* PLAYER */
+const player={
+  x:400,y:440,
+  r:18,
+  cd:0,
+  lives:3,
+  maxHp:100,
+  hp:100
+};
+
+let bullets=[];
+let enemies=[];
+let enemyBullets=[];
+
+/* JOYSTICK */
+const joy=document.getElementById("joystick");
+const stick=document.getElementById("stick");
+
+joy.ontouchmove=e=>{
+  const r=joy.getBoundingClientRect();
+  let dx=e.touches[0].clientX-r.left-160;
+  dx=Math.max(-120,Math.min(120,dx));
+  stick.style.left=120+dx+"px";
+  move=dx/120;
+};
+joy.ontouchend=()=>{
+  move=0;
+  stick.style.left="120px";
+};
+
+fireBtn.ontouchstart=()=>fire=true;
+fireBtn.ontouchend=()=>fire=false;
+
+/* RESET */
+retryBtn.onclick=()=>{
+  cancelAnimationFrame(animationId);
+  score=0;
+  boss=null;
+  bossStage=0;
+  bullets=[];
+  enemies=[];
+  enemyBullets=[];
+  player.lives=3;
+  player.hp=player.maxHp;
+  gameOver=false;
+  retryBtn.style.display="none";
+  loop();
+};
+
+/* FORMATIONS */
+function spawnFormation(){
+  if(boss || gameOver) return;
+  enemies=[];
+  const type=Math.floor(Math.random()*3);
+
+  for(let i=0;i<6;i++){
+    enemies.push({
+      x:120+i*100,
+      y:-50,
+      r:18,
+      cd:80,
+      zig:type===2
+    });
+  }
+}
+
+/* BOSS */
+function spawnBoss(stage){
+  enemies=[];
+  boss={
+    x:400,y:90,
+    w:220,h:90,
+    hp:stage===1?100:stage===2?180:280,
+    maxHp:stage===1?100:stage===2?180:280,
+    dir:1,cd:0,
+    stage
+  };
+}
+
+/* DAMAGE */
+function takeDamage(){
+  player.hp-=34;
+  if(player.hp<=0){
+    player.lives--;
+    player.hp=player.maxHp;
+    if(player.lives<=0){
+      gameOver=true;
+      retryBtn.style.display="block";
+    }
+  }
+}
+
+/* UPDATE */
+function update(){
+  player.x+=move*6;
+  player.x=Math.max(30,Math.min(canvas.width-30,player.x));
+
+  if(fire && player.cd<=0){
+    bullets.push({x:player.x,y:player.y});
+    player.cd=12;
+  }
+  if(player.cd>0) player.cd--;
+
+  bullets.forEach(b=>b.y-=9);
+  bullets=bullets.filter(b=>b.y>-20);
+
+  enemies.forEach(e=>{
+    e.y+=2;
+    if(e.zig) e.x+=Math.sin(e.y/30)*3;
+    e.cd--;
+    if(e.cd<=0){
+      enemyBullets.push({x:e.x,y:e.y,vy:5});
+      e.cd=100;
+    }
+  });
+
+  enemyBullets.forEach(b=>b.y+=b.vy);
+  enemyBullets=enemyBullets.filter(b=>b.y<520);
+
+  enemyBullets.forEach(b=>{
+    if(Math.hypot(player.x-b.x,player.y-b.y)<18){
+      takeDamage();
+      b.y=999;
+    }
+  });
+
+  bullets.forEach((b,bi)=>{
+    enemies.forEach((e,ei)=>{
+      if(Math.hypot(e.x-b.x,e.y-b.y)<18){
+        bullets.splice(bi,1);
+        enemies.splice(ei,1);
+        score+=10;
+      }
+    });
+
+    if(boss &&
+      b.x>boss.x-boss.w/2 &&
+      b.x<boss.x+boss.w/2 &&
+      b.y>boss.y-boss.h/2){
+      boss.hp--;
+      bullets.splice(bi,1);
+      if(boss.hp<=0){
+        boss=null;
+        score+=200;
+      }
+    }
+  });
+
+  if(!boss){
+    if(score>=150 && bossStage===0){bossStage=1;spawnBoss(1);}
+    else if(score>=400 && bossStage===1){bossStage=2;spawnBoss(2);}
+    else if(score>=800 && bossStage===2){bossStage=3;spawnBoss(3);}
+  }
+
+  if(boss){
+    boss.x+=boss.dir*(boss.stage+2);
+    if(boss.x<150||boss.x>650) boss.dir*=-1;
+    boss.cd--;
+    if(boss.cd<=0){
+      enemyBullets.push({x:boss.x,y:boss.y,vy:6});
+      boss.cd=40;
+    }
+  }
+}
+
+/* DRAW SHIPS */
+function drawPlayerShip(){
+  ctx.save();
+  ctx.translate(player.x,player.y);
+  ctx.fillStyle="#ff00ff";
+  ctx.beginPath();
+  ctx.moveTo(0,-22);
+  ctx.lineTo(16,18);
+  ctx.lineTo(0,10);
+  ctx.lineTo(-16,18);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle="#00ffff";
+  ctx.fillRect(-4,18,8,10);
+  ctx.restore();
+}
+
+function drawEnemyShip(e){
+  ctx.save();
+  ctx.translate(e.x,e.y);
+  ctx.fillStyle="#ff3333";
+  ctx.beginPath();
+  ctx.moveTo(0,16);
+  ctx.lineTo(18,-12);
+  ctx.lineTo(-18,-12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawBossShip(){
+  ctx.save();
+  ctx.translate(boss.x,boss.y);
+  ctx.fillStyle="#8000ff";
+  ctx.beginPath();
+  ctx.moveTo(-110,-30);
+  ctx.lineTo(110,-30);
+  ctx.lineTo(80,30);
+  ctx.lineTo(-80,30);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+/* DRAW */
+function draw(){
+  ctx.clearRect(0,0,800,500);
+
+  drawPlayerShip();
+
+  ctx.fillStyle="#0f0";
+  bullets.forEach(b=>ctx.fillRect(b.x,b.y,4,10));
+
+  enemies.forEach(drawEnemyShip);
+
+  ctx.fillStyle="#ff0";
+  enemyBullets.forEach(b=>ctx.fillRect(b.x,b.y,5,5));
+
+  if(boss){
+    drawBossShip();
+    ctx.fillStyle="#444";
+    ctx.fillRect(200,20,400,12);
+    ctx.fillStyle="#f00";
+    ctx.fillRect(200,20,400*(boss.hp/boss.maxHp),12);
+  }
+
+  ctx.fillStyle="#0ff";
+  ctx.fillText("Score: "+score,20,20);
+  ctx.fillText("Lives: "+player.lives,20,40);
+
+  ctx.fillStyle="#444";
+  ctx.fillRect(20,55,150,12);
+  ctx.fillStyle="#0f0";
+  ctx.fillRect(20,55,150*(player.hp/player.maxHp),12);
+
+  if(gameOver){
+    ctx.fillStyle="#ff00ff";
+    ctx.font="32px monospace";
+    ctx.fillText("GAME OVER",280,220);
+  }
+}
+
+/* LOOP */
+function loop(){
+  update();
+  draw();
+  if(!gameOver) animationId=requestAnimationFrame(loop);
+}
+
+setInterval(spawnFormation,3500);
+loop();
+</script>
+</body>
+</html>

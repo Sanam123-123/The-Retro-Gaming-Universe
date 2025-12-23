@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Maze Horror – Stage 5</title>
+
+<style>
+    .back-btn{
+  position:fixed;
+  top:15px;
+  left:15px;
+  z-index:9999;
+  text-decoration:none;
+  font-size:26px;
+  color:white;
+  background:rgba(0,0,0,0.6);
+  padding:8px 14px;
+  border-radius:50%;
+  border:2px solid white;
+}
+
+.back-btn:active{
+  background:white;
+  color:black;
+}
+body {margin:0; overflow:hidden; background:black; font-family:monospace; touch-action:none;}
+#camera{position:fixed;width:100vw;height:100vh;overflow:hidden;}
+#world{position:absolute;}
+.wall{position:absolute; background:#111;}
+#player{position:absolute;width:18px;height:18px;background:white;z-index:5;}
+.enemy{position:absolute;width:20px;height:20px;background:darkred;z-index:4;transition:left .15s, top .15s;}
+#exit{position:absolute;width:22px;height:22px;background:green;z-index:3;}
+.key{position:absolute;width:20px;height:20px;background:yellow;z-index:6;border-radius:50%;}
+.door{position:absolute;width:50px;height:50px;background:brown;z-index:3;}
+#darkness{position:fixed; inset:0; pointer-events:none; z-index:10;}
+#jumpScare{position:fixed; inset:0; background:red; opacity:0; z-index:20; transition:opacity .1s;}
+#joystick{position:fixed; bottom:25px; left:25px; width:120px; height:120px; border:2px solid white; border-radius:50%; opacity:.3; z-index:20;}
+#stick{width:40px; height:40px; background:white; border-radius:50%; position:absolute; left:40px; top:40px;}
+.overlay{position:fixed; inset:0; background:rgba(0,0,0,0.95); color:white; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; z-index:100; padding:20px;}
+.overlay button{margin-top:25px; padding:15px 30px; font-size:18px; background:black; color:white; border:2px solid white;}
+#popup{position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.9); color:white; font-size:32px; z-index:50;}
+#retryBtn{margin-top:20px; padding:10px 20px; font-size:20px; background:black; color:white; border:2px solid white; cursor:pointer;}
+</style>
+</head>
+
+<body><a href="index.html" class="back-btn">←</a>
+<div id="camera"><div id="world"></div></div>
+<div id="darkness"></div>
+<div id="jumpScare"></div>
+<div id="joystick"><div id="stick"></div></div>
+
+<div id="start" class="overlay">
+<h1>ESCAPE THE TERRIFYING MAZE</h1>
+<p>
+• Use the joystick to move<br>
+• Moving makes noise<br>
+• Enemies patrol & hunt<br>
+• Standing still is safer<br>
+• Keys open doors, doors always reachable<br>
+• Only limited vision around you<br>
+• Beware jump scares!
+</p>
+<button onclick="startGame()">START</button>
+</div>
+
+<div id="popup"></div>
+
+<script>
+const TILE=50, ROWS=25, COLS=35;
+let maze=[];
+const world=document.getElementById("world");
+const popup=document.getElementById("popup");
+const darkness=document.getElementById("darkness");
+const jumpScare=document.getElementById("jumpScare");
+
+/* ===== UTILS ===== */
+function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+
+/* ===== MAZE GENERATOR ===== */
+function generateMaze(rows,cols){
+  const m=Array.from({length:rows},()=>Array(cols).fill(1));
+  function carve(x,y){
+    m[y][x]=0;
+    const dirs=[[0,2],[0,-2],[2,0],[-2,0]].sort(()=>Math.random()-0.5);
+    for(const [dx,dy] of dirs){
+      const nx=x+dx,ny=y+dy;
+      if(ny>0 && ny<rows-1 && nx>0 && nx<cols-1 && m[ny][nx]===1){
+        m[y+dy/2][x+dx/2]=0; carve(nx,ny);
+      }
+    }
+  }
+  carve(1,1);
+  return m;
+}
+
+/* ===== BUILD MAZE ===== */
+function buildMaze(){
+  world.innerHTML="";
+  for(let y=0;y<ROWS;y++){
+    for(let x=0;x<COLS;x++){
+      if(maze[y][x]===1){
+        const w=document.createElement("div");
+        w.className="wall";
+        w.style.left=x*TILE+"px";
+        w.style.top=y*TILE+"px";
+        w.style.width=TILE+"px";
+        w.style.height=TILE+"px";
+        world.appendChild(w);
+      }
+    }
+  }
+}
+
+/* ===== GLOBALS ===== */
+let px,py,alive,started;
+let player,exit,enemies,keyElements=[],doorElements=[];
+let keysCollected=0,sound=null;
+
+/* ===== PLAYER/EXIT ===== */
+function createPlayer(){ px=1; py=1; const p=document.createElement("div"); p.id="player"; world.appendChild(p); return p; }
+function createExit(){ const e=document.createElement("div"); e.id="exit"; e.style.left=(COLS-2)*TILE+14+"px"; e.style.top=1*TILE+14+"px"; world.appendChild(e); return e; }
+
+/* ===== BFS PATH ===== */
+function bfsPath(sx,sy,tx,ty){
+  const q=[[sx,sy]],p={},seen=new Set([`${sx},${sy}`]);
+  while(q.length){
+    const [x,y]=q.shift();
+    if(x===tx && y===ty) break;
+    [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{
+      const nx=x+dx,ny=y+dy,k=`${nx},${ny}`;
+      if(nx>=0 && ny>=0 && nx<COLS && ny<ROWS && maze[ny][nx]===0 && !seen.has(k)){ seen.add(k); p[k]=[x,y]; q.push([nx,ny]); }
+    });
+  }
+  const path=[]; let c=[tx,ty];
+  while(p[`${c[0]},${c[1]}`]){ path.push(c); c=p[`${c[0]},${c[1]}`]; }
+  return path.reverse();
+}
+
+/* ===== KEYS & DOORS ===== */
+function createKeysAndDoors(){
+  keyElements=[]; doorElements=[];
+  const path=bfsPath(1,1,COLS-2,1);
+  if(path.length>10){
+    const door1=path[Math.floor(path.length/3)];
+    const door2=path[Math.floor(path.length*2/3)];
+    const key1=path[Math.floor(path.length/6)];
+    const key2=path[Math.floor(path.length/2.5)];
+
+    [door1,door2].forEach(([x,y])=>{
+      const d=document.createElement("div"); d.className="door"; d.style.left=x*TILE+"px"; d.style.top=y*TILE+"px";
+      world.appendChild(d); doorElements.push({el:d,x,y,open:false});
+    });
+    [key1,key2].forEach(([x,y])=>{
+      const k=document.createElement("div"); k.className="key"; k.style.left=x*TILE+15+"px"; k.style.top=y*TILE+15+"px";
+      world.appendChild(k); keyElements.push({el:k,x,y,collected:false});
+    });
+  }
+}
+
+/* ===== ENEMIES ===== */
+function createEnemies(){
+  const arr=[
+    {x:COLS-2,y:ROWS-2,path:[],state:"idle",patrolTimer:0}
+  ];
+  arr.forEach(e=>{ e.el=document.createElement("div"); e.el.className="enemy"; world.appendChild(e.el); });
+  return arr;
+}
+
+/* ===== JOYSTICK ===== */
+const joystick=document.getElementById("joystick");
+const stick=document.getElementById("stick");
+let jx=0,jy=0;
+joystick.addEventListener("touchmove",e=>{
+  const r=joystick.getBoundingClientRect(); const t=e.touches[0];
+  const dx=t.clientX-(r.left+r.width/2); const dy=t.clientY-(r.top+r.height/2);
+  const a=Math.atan2(dy,dx);
+  jx=Math.round(Math.cos(a)); jy=Math.round(Math.sin(a));
+  stick.style.left=40+Math.cos(a)*40+"px"; stick.style.top=40+Math.sin(a)*40+"px";
+});
+joystick.addEventListener("touchend",()=>{jx=jy=0; stick.style.left="40px"; stick.style.top="40px";});
+
+/* ===== PATHFIND ===== */
+function findPath(sx,sy,tx,ty){
+  const q=[[sx,sy]],seen=new Set([`${sx},${sy}`]),p={};
+  while(q.length){
+    const [x,y]=q.shift();
+    if(x===tx && y===ty) break;
+    [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{
+      const nx=x+dx,ny=y+dy,k=`${nx},${ny}`;
+      if(nx>=0 && ny>=0 && nx<COLS && ny<ROWS && maze[ny][nx]===0 && !seen.has(k)){
+        seen.add(k); p[k]=[x,y]; q.push([nx,ny]);
+      }
+    });
+  }
+  const path=[]; let c=[tx,ty];
+  while(p[`${c[0]},${c[1]}`]){ path.push(c); c=p[`${c[0]},${c[1]}`]; }
+  return path.reverse();
+}
+
+/* ===== SOUND ===== */
+function makeSound(){ sound={x:px,y:py,r:4,t:15}; }
+
+/* ===== START GAME ===== */
+function startGame(){
+  document.getElementById("start").style.display="none";
+  maze=generateMaze(ROWS,COLS);
+  buildMaze();
+  alive=true; started=true; keysCollected=0;
+  player=createPlayer();
+  exit=createExit();
+  createKeysAndDoors();
+  enemies=createEnemies();
+  loop();
+}
+
+/* ===== RESTART ===== */
+function restartGame(){ popup.style.display="none"; startGame(); }
+
+/* ===== JUMP SCARE ===== */
+function triggerJumpScare(){
+  jumpScare.style.opacity=1;
+  setTimeout(()=>{jumpScare.style.opacity=0;},100);
+}
+
+/* ===== LOOP ===== */
+function loop(){
+  if(!alive||!started) return;
+
+  const nx=px+jx,ny=py+jy;
+  if(maze[ny]?.[nx]===0 && !doorElements.some(d=>!d.open && d.x===nx && d.y===ny)){ px=nx; py=ny; makeSound(); }
+
+  if(sound && --sound.t<=0) sound=null;
+
+  // Collect keys
+  keyElements.forEach(k=>{
+    if(!k.collected && k.x===px && k.y===py){ k.collected=true; k.el.style.display="none"; keysCollected++; doorElements.forEach(d=>{if(!d.open)d.open=true; d.el.style.background="saddlebrown";});}
+  });
+
+  // Enemies
+  enemies.forEach(e=>{
+    e.patrolTimer--;
+    if(sound){ const d=Math.abs(e.x-sound.x)+Math.abs(e.y-sound.y); if(d<=sound.r)e.path=findPath(e.x,e.y,sound.x,sound.y);}
+    else if(e.patrolTimer<=0){ 
+      const dirs=[[1,0],[-1,0],[0,1],[0,-1]].sort(()=>Math.random()-0.5);
+      for(const [dx,dy] of dirs){const nx=e.x+dx,ny=e.y+dy;if(maze[ny]?.[nx]===0){e.path=[[nx,ny]];break;}} 
+      e.patrolTimer=5+randInt(0,3);
+    }
+    if(e.path.length) [e.x,e.y]=e.path.shift();
+    if(e.x===px && e.y===py){ alive=false; popup.innerHTML="YOU ARE NOT ALONE<br><button id='retryBtn' onclick='restartGame()'>RETRY</button>"; popup.style.display="flex"; }
+    e.el.style.left=e.x*TILE+15+"px"; e.el.style.top=e.y*TILE+15+"px";
+    // Random jump scare
+    if(Math.random()<0.002) triggerJumpScare();
+  });
+
+  player.style.left=px*TILE+16+"px"; player.style.top=py*TILE+16+"px";
+  world.style.transform=`translate(${innerWidth/2-(px*TILE+16)}px,${innerHeight/2-(py*TILE+16)}px)`;
+  darkness.style.background=`radial-gradient(circle at ${innerWidth/2}px ${innerHeight/2}px, transparent 90px, rgba(0,0,0,.97) 250px)`;
+
+  // Win
+  if(px===COLS-2 && py===1){ alive=false; popup.innerHTML="YOU ESCAPED<br><button id='retryBtn' onclick='restartGame()'>RETRY</button>"; popup.style.display="flex"; }
+
+  setTimeout(loop,180);
+}
+</script>
+</body>
+</html>

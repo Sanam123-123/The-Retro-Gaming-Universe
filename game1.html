@@ -118,7 +118,9 @@ let bullets=[];
 let enemies=[];
 let enemyBullets=[];
 
-/* JOYSTICK */
+/* =========================
+   MOBILE JOYSTICK CONTROLS
+   ========================= */
 const joy=document.getElementById("joystick");
 const stick=document.getElementById("stick");
 
@@ -137,7 +139,31 @@ joy.ontouchend=()=>{
 fireBtn.ontouchstart=()=>fire=true;
 fireBtn.ontouchend=()=>fire=false;
 
-/* RESET */
+/* =========================
+   LAPTOP KEYBOARD CONTROLS
+   ========================= */
+const keys={};
+
+window.addEventListener("keydown",e=>{
+  keys[e.key]=true;
+
+  if(e.key===" "){
+    fire=true;
+    e.preventDefault();
+  }
+});
+
+window.addEventListener("keyup",e=>{
+  keys[e.key]=false;
+  if(e.key===" ") fire=false;
+});
+
+/* Mouse fire */
+canvas.addEventListener("mousedown",()=>fire=true);
+window.addEventListener("mouseup",()=>fire=false);
+
+/* ========================= */
+
 retryBtn.onclick=()=>{
   cancelAnimationFrame(animationId);
   score=0;
@@ -198,6 +224,12 @@ function takeDamage(){
 
 /* UPDATE */
 function update(){
+
+  /* Keyboard movement */
+  if(keys["ArrowLeft"]||keys["a"]||keys["A"]) move=-1;
+  else if(keys["ArrowRight"]||keys["d"]||keys["D"]) move=1;
+  else if(!joy.matches(":active")) move=0;
+
   player.x+=move*6;
   player.x=Math.max(30,Math.min(canvas.width-30,player.x));
 
@@ -269,8 +301,11 @@ function update(){
   }
 }
 
-/* DRAW SHIPS */
-function drawPlayerShip(){
+/* DRAW */
+function draw(){
+  ctx.clearRect(0,0,800,500);
+
+  /* Player */
   ctx.save();
   ctx.translate(player.x,player.y);
   ctx.fillStyle="#ff00ff";
@@ -281,55 +316,32 @@ function drawPlayerShip(){
   ctx.lineTo(-16,18);
   ctx.closePath();
   ctx.fill();
-
   ctx.fillStyle="#00ffff";
   ctx.fillRect(-4,18,8,10);
   ctx.restore();
-}
-
-function drawEnemyShip(e){
-  ctx.save();
-  ctx.translate(e.x,e.y);
-  ctx.fillStyle="#ff3333";
-  ctx.beginPath();
-  ctx.moveTo(0,16);
-  ctx.lineTo(18,-12);
-  ctx.lineTo(-18,-12);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-}
-
-function drawBossShip(){
-  ctx.save();
-  ctx.translate(boss.x,boss.y);
-  ctx.fillStyle="#8000ff";
-  ctx.beginPath();
-  ctx.moveTo(-110,-30);
-  ctx.lineTo(110,-30);
-  ctx.lineTo(80,30);
-  ctx.lineTo(-80,30);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-}
-
-/* DRAW */
-function draw(){
-  ctx.clearRect(0,0,800,500);
-
-  drawPlayerShip();
 
   ctx.fillStyle="#0f0";
   bullets.forEach(b=>ctx.fillRect(b.x,b.y,4,10));
 
-  enemies.forEach(drawEnemyShip);
+  enemies.forEach(e=>{
+    ctx.save();
+    ctx.translate(e.x,e.y);
+    ctx.fillStyle="#ff3333";
+    ctx.beginPath();
+    ctx.moveTo(0,16);
+    ctx.lineTo(18,-12);
+    ctx.lineTo(-18,-12);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  });
 
   ctx.fillStyle="#ff0";
   enemyBullets.forEach(b=>ctx.fillRect(b.x,b.y,5,5));
 
   if(boss){
-    drawBossShip();
+    ctx.fillStyle="#8000ff";
+    ctx.fillRect(boss.x-110,boss.y-30,220,60);
     ctx.fillStyle="#444";
     ctx.fillRect(200,20,400,12);
     ctx.fillStyle="#f00";

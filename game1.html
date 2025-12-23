@@ -2,7 +2,8 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Neon Blaster – Stage 3</title>
+<title>Neon Blaster – Stage 3 (Desktop + Mobile Controls)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <style>
     .back-btn{
   position:fixed;
@@ -44,7 +45,9 @@ canvas{
   width:320px;
   height:320px;
   border-radius:50%;
-  background:rgba(0,255,255,.2);
+  background:rgba(0,255,255,.12);
+  touch-action:none;
+  z-index:50;
 }
 #stick{
   position:absolute;
@@ -54,6 +57,7 @@ canvas{
   height:80px;
   border-radius:50%;
   background:#00ffff;
+  will-change:transform,left,top;
 }
 #fireBtn{
   position:fixed;
@@ -66,6 +70,7 @@ canvas{
   color:white;
   font-size:32px;
   border:none;
+  z-index:50;
 }
 
 /* RETRY */
@@ -80,26 +85,43 @@ canvas{
   color:white;
   border:none;
   display:none;
+  z-index:60;
+}
+.controls-hint{
+  position:fixed;
+  top:18px;
+  right:16px;
+  color:#ccc;
+  font-size:14px;
+  z-index:999;
+  background:rgba(0,0,0,0.4);
+  padding:8px 12px;
+  border-radius:8px;
+  border:1px solid rgba(255,255,255,0.06);
 }
 </style>
 </head>
 <body><a href="index.html" class="back-btn">←</a>
+<div class="controls-hint">Laptop: ← → or A D to move • Space/Z to fire • R to retry</div>
 
-<canvas id="game" width="800" height="500"></canvas>
-<div id="joystick"><div id="stick"></div></div>
-<button id="fireBtn">🔥 FIRE</button>
+<canvas id="game" width="800" height="500" tabindex="0"></canvas>
+<div id="joystick" aria-hidden="true"><div id="stick"></div></div>
+<button id="fireBtn" aria-label="Fire (touch)">🔥 FIRE</button>
 <button id="retry">RETRY</button>
 
 <script>
+/* -------------------------
+   Game & input variables
+   ------------------------- */
 const canvas=document.getElementById("game");
 const ctx=canvas.getContext("2d");
 const fireBtn=document.getElementById("fireBtn");
 const retryBtn=document.getElementById("retry");
+const joy=document.getElementById("joystick");
+const stick=document.getElementById("stick");
 
 let animationId=null;
 let score=0;
-let move=0;
-let fire=false;
 let gameOver=false;
 let boss=null;
 let bossStage=0;
@@ -118,27 +140,120 @@ let bullets=[];
 let enemies=[];
 let enemyBullets=[];
 
-/* JOYSTICK */
-const joy=document.getElementById("joystick");
-const stick=document.getElementById("stick");
+/* Movement sources:
+   keyboardMove: -1,0,1 from keyboard
+   touchMove: fractional -1..1 from joystick
+   final move used each frame */
+let keyboardMove=0;
+let touchMove=0;
 
-joy.ontouchmove=e=>{
-  const r=joy.getBoundingClientRect();
-  let dx=e.touches[0].clientX-r.left-160;
+/* Fire state */
+let fire=false;
+
+/* -------------------------
+   Joystick (touch + pointer)
+   ------------------------- */
+function setStickPositionFromDx(dx){
+  // dx in pixels -120..120
   dx=Math.max(-120,Math.min(120,dx));
-  stick.style.left=120+dx+"px";
-  move=dx/120;
+  stick.style.left=(120+dx)+"px";
+  touchMove = dx/120;
+}
+
+// Touch events (older fallback)
+joy.ontouchmove = e => {
+  const r=joy.getBoundingClientRect();
+  let dx = e.touches[0].clientX - r.left - 160;
+  setStickPositionFromDx(dx);
+  e.preventDefault();
 };
-joy.ontouchend=()=>{
-  move=0;
+joy.ontouchend = e => {
+  touchMove = 0;
   stick.style.left="120px";
+  e.preventDefault();
 };
 
-fireBtn.ontouchstart=()=>fire=true;
-fireBtn.ontouchend=()=>fire=false;
+// Pointer events (mouse + pen + touch unified)
+let pointerDown=false;
+joy.addEventListener('pointerdown', (e)=>{
+  pointerDown=true;
+  joy.setPointerCapture(e.pointerId);
+});
+joy.addEventListener('pointermove', (e)=>{
+  if(!pointerDown) return;
+  const r=joy.getBoundingClientRect();
+  let dx = e.clientX - r.left - 160;
+  setStickPositionFromDx(dx);
+});
+joy.addEventListener('pointerup', (e)=>{
+  pointerDown=false;
+  touchMove=0;
+  stick.style.left="120px";
+  try{ joy.releasePointerCapture(e.pointerId); }catch(err){}
+});
 
-/* RESET */
-retryBtn.onclick=()=>{
+// Prevent context menu on long press
+joy.addEventListener('contextmenu', e=>e.preventDefault());
+
+/* -------------------------
+   Fire button touch/mouse
+   ------------------------- */
+// Touch
+fireBtn.addEventListener('touchstart', e=>{ fire=true; e.preventDefault(); }, {passive:false});
+fireBtn.addEventListener('touchend', e=>{ fire=false; e.preventDefault(); }, {passive:false});
+// Mouse
+fireBtn.addEventListener('mousedown', e=>{ fire=true; e.preventDefault(); });
+window.addEventListener('mouseup', e=>{ fire=false; });
+
+/* Canvas as alternate fire area (desktop users) */
+canvas.addEventListener('mousedown', e=>{ fire=true; });
+window.addEventListener('mouseup', e=>{ fire=false; });
+
+/* -------------------------
+   Keyboard controls
+   ------------------------- */
+window.addEventListener('keydown', e=>{
+  if(e.repeat) return; // ignore held repeat here; we'll maintain state on keyup
+  const k = e.key.toLowerCase();
+  if(k==='arrowleft' || k==='left' || k==='a'){
+    keyboardMove = -1;
+    e.preventDefault();
+  } else if(k==='arrowright' || k==='right' || k==='d'){
+    keyboardMove = 1;
+    e.preventDefault();
+  } else if(k===' ' || k==='z'){
+    fire = true;
+    e.preventDefault();
+  } else if(k==='r' || k==='enter'){
+    // Retry on R or Enter if game over
+    if(gameOver) restartGame();
+    e.preventDefault();
+  }
+});
+window.addEventListener('keyup', e=>{
+  const k = e.key.toLowerCase();
+  if(k==='arrowleft' || k==='left' || k==='a'){
+    if(keyboardMove===-1) keyboardMove = 0;
+    e.preventDefault();
+  } else if(k==='arrowright' || k==='right' || k==='d'){
+    if(keyboardMove===1) keyboardMove = 0;
+    e.preventDefault();
+  } else if(k===' ' || k==='z'){
+    fire = false;
+    e.preventDefault();
+  }
+});
+
+// Keep canvas focusable to allow keyboard input (especially on desktop)
+canvas.setAttribute('tabindex','0');
+canvas.addEventListener('click', ()=> canvas.focus());
+
+/* -------------------------
+   Reset / Retry
+   ------------------------- */
+retryBtn.addEventListener('click', restartGame);
+
+function restartGame(){
   cancelAnimationFrame(animationId);
   score=0;
   boss=null;
@@ -151,14 +266,15 @@ retryBtn.onclick=()=>{
   gameOver=false;
   retryBtn.style.display="none";
   loop();
-};
+}
 
-/* FORMATIONS */
+/* -------------------------
+   Spawning / formations / boss
+   ------------------------- */
 function spawnFormation(){
   if(boss || gameOver) return;
   enemies=[];
   const type=Math.floor(Math.random()*3);
-
   for(let i=0;i<6;i++){
     enemies.push({
       x:120+i*100,
@@ -170,7 +286,6 @@ function spawnFormation(){
   }
 }
 
-/* BOSS */
 function spawnBoss(stage){
   enemies=[];
   boss={
@@ -183,7 +298,9 @@ function spawnBoss(stage){
   };
 }
 
-/* DAMAGE */
+/* -------------------------
+   Damage / update / collisions
+   ------------------------- */
 function takeDamage(){
   player.hp-=34;
   if(player.hp<=0){
@@ -196,10 +313,11 @@ function takeDamage(){
   }
 }
 
-/* UPDATE */
 function update(){
-  player.x+=move*6;
-  player.x=Math.max(30,Math.min(canvas.width-30,player.x));
+  // Combine movement sources: keyboardMove takes precedence when non-zero
+  let move = (keyboardMove !== 0) ? keyboardMove : touchMove;
+  player.x += move * 6;
+  player.x = Math.max(30, Math.min(canvas.width - 30, player.x));
 
   if(fire && player.cd<=0){
     bullets.push({x:player.x,y:player.y});
@@ -231,6 +349,7 @@ function update(){
   });
 
   bullets.forEach((b,bi)=>{
+    // enemies hit
     enemies.forEach((e,ei)=>{
       if(Math.hypot(e.x-b.x,e.y-b.y)<18){
         bullets.splice(bi,1);
@@ -239,6 +358,7 @@ function update(){
       }
     });
 
+    // boss hit
     if(boss &&
       b.x>boss.x-boss.w/2 &&
       b.x<boss.x+boss.w/2 &&
@@ -269,7 +389,9 @@ function update(){
   }
 }
 
-/* DRAW SHIPS */
+/* -------------------------
+   Drawing
+   ------------------------- */
 function drawPlayerShip(){
   ctx.save();
   ctx.translate(player.x,player.y);
@@ -314,7 +436,6 @@ function drawBossShip(){
   ctx.restore();
 }
 
-/* DRAW */
 function draw(){
   ctx.clearRect(0,0,800,500);
 
@@ -337,6 +458,7 @@ function draw(){
   }
 
   ctx.fillStyle="#0ff";
+  ctx.font="16px monospace";
   ctx.fillText("Score: "+score,20,20);
   ctx.fillText("Lives: "+player.lives,20,40);
 
@@ -352,7 +474,9 @@ function draw(){
   }
 }
 
-/* LOOP */
+/* -------------------------
+   Main loop
+   ------------------------- */
 function loop(){
   update();
   draw();
@@ -361,6 +485,32 @@ function loop(){
 
 setInterval(spawnFormation,3500);
 loop();
+
+/* -------------------------
+   Accessibility: allow retry via keyboard even if not focused
+   ------------------------- */
+function restartGame(){
+  restartGame; // placeholder for function binding - not used
+}
+
+/* -------------------------
+   Ensure R or Enter works for retry even without focus
+   ------------------------- */
+window.addEventListener('keydown', e=>{
+  if((e.key.toLowerCase()==='r' || e.key==='Enter') && gameOver){
+    restartGame();
+  }
+});
+
+/* -------------------------
+   Prevent arrow keys from scrolling the page
+   ------------------------- */
+window.addEventListener("keydown", function(e) {
+  if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].indexOf(e.key) > -1) {
+    e.preventDefault();
+  }
+}, false);
+
 </script>
 </body>
 </html>

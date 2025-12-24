@@ -26,10 +26,61 @@
   html,body{height:100%;margin:0;background:#f7f7f7;font-family:Arial,Helvetica,sans-serif;touch-action:none}
   #c{display:block;margin:0 auto;touch-action:manipulation}
   @media(min-width:900px){#c{max-width:900px}}
+#startScreen{
+  position:fixed;
+  inset:0;
+  background:#f7f7f7;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:9998;
+}
+
+.start-box{
+  text-align:center;
+  padding:18px 22px;
+}
+
+.start-box h1{
+  margin:0 0 6px;
+  font-size:26px;
+  font-weight:600;
+  color:#222;
+}
+
+.tiny-controls{
+  font-size:10px;           /* VERY tiny */
+  color:#777;
+  margin-bottom:10px;
+}
+
+#startBtn{
+  font-size:13px;
+  padding:6px 14px;
+  border-radius:6px;
+  border:none;
+  background:#222;
+  color:white;
+  cursor:pointer;
+}
+
+#startBtn:active{
+  transform:scale(0.96);
+}
 </style>
 </head>
 <body><a href="index.html" class="back-btn">←</a>
+<div id="startScreen">
+  <div class="start-box">
+    <h1>Dino Run</h1>
 
+    <div class="tiny-controls">
+      Tap / Click / Space → Jump &nbsp;•&nbsp; R → Retry
+    </div>
+
+    <button id="startBtn">Start</button>
+  </div>
+</div>
 <canvas id="c"></canvas>
 
 <script>
@@ -55,7 +106,7 @@ let GROUND;
 function updateGround(){ GROUND = canvas.height - 40; }
 
 /* game state */
-let running = true;
+let running = false;
 let speed = 6;
 let score = 0;
 let frame = 0;
@@ -131,7 +182,11 @@ function reset(){
   obstacles = [];
   dino.y = GROUND - dino.h; dino.vy = 0; dino.grounded = true; dino.step = 0;
 }
-
+// Start game
+function startGame(){
+  document.getElementById('startScreen').style.display = 'none';
+  reset();
+}
 function spawnCactus(){ obstacles.push({type:'cactus', x: canvas.width, w: 20, h: 40}); }
 function spawnBird(){ obstacles.push({type:'bird', x: canvas.width, y: GROUND - 70, w: 30, h: 20, flap:0}); }
 
@@ -336,6 +391,14 @@ function loop(){
 resize();
 reset();
 loop();
+document.getElementById('startBtn').addEventListener('click', startGame);
+
+document.addEventListener('keydown', function(e){
+  if (!running && (e.code === 'Space' || e.key === 'Enter')){
+    e.preventDefault();
+    startGame();
+  }
+});
 </script>
 </body>
 </html>

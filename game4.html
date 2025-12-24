@@ -71,7 +71,27 @@ let obstacles = [];
 /* input */
 document.body.addEventListener('touchstart', handleInput, {passive:true});
 document.body.addEventListener('mousedown', handleInput);
+// Keyboard controls (Laptop / Desktop)
+document.addEventListener('keydown', function(e){
 
+  // SPACE = Jump
+  if (e.code === 'Space'){
+    e.preventDefault(); // stop page scrolling
+
+    if (!running) return;
+
+    if (dino.grounded){
+      dino.vy = -12;
+      dino.grounded = false;
+    }
+  }
+
+  // R = Retry anytime
+  if (e.key === 'r' || e.key === 'R'){
+    reset();
+  }
+
+});
 function handleInput(e){
   if (!running){
     // detect Retry button tap/click

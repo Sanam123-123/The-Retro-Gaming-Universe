@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Dino Run — Sprites Fixed</title>
+<style>
+  html,body{height:100%;margin:0;background:#f7f7f7;font-family:Arial,Helvetica,sans-serif;touch-action:none}
+  #c{display:block;margin:0 auto;touch-action:manipulation}
+  @media(min-width:900px){#c{max-width:900px}}
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<script>
+/* Dino Run — Sprites ALWAYS enabled; jump frame fixed and bird flap used */
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let ENABLE_SPRITES = true;
+
+/* sizing */
+function resize(){
+  canvas.width = Math.min(window.innerWidth, 900);
+  canvas.height = Math.min(320, Math.round(window.innerHeight * 0.45));
+  updateGround();
+  // ensure dino stays on ground after resize
+  dino.y = GROUND - dino.h;
+}
+window.addEventListener('resize', resize);
+
+/* ground */
+let GROUND;
+function updateGround(){ GROUND = canvas.height - 40; }
+
+/* game state */
+let running = true;
+let speed = 6;
+let score = 0;
+let frame = 0;
+let night = false;
+let highScore = 0; // session-only high score
+
+/* dino */
+const dino = { x: 50, y: 0, w: 40, h: 40, vy: 0, grounded: true, step: 0 };
+
+/* obstacles */
+let obstacles = [];
+
+/* input */
+document.body.addEventListener('touchstart', handleInput, {passive:true});
+document.body.addEventListener('mousedown', handleInput);
+
+function handleInput(e){
+  if (!running){
+    // detect Retry button tap/click
+    const rect = canvas.getBoundingClientRect();
+
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+
+    const btnW = 120, btnH = 32;
+    const btnX = canvas.width / 2 - btnW / 2;
+    const btnY = 160;
+
+    if (
+      x >= btnX &&
+      x <= btnX + btnW &&
+      y >= btnY &&
+      y <= btnY + btnH
+    ){
+      reset();
+    }
+    return;
+  }
+
+  // jump
+  if (dino.grounded){
+    dino.vy = -12;
+    dino.grounded = false;
+  }
+}
+
+/* reset & spawn */
+function reset(){
+  running = true; speed = 6; score = 0; frame = 0; night = false;
+  obstacles = [];
+  dino.y = GROUND - dino.h; dino.vy = 0; dino.grounded = true; dino.step = 0;
+}
+
+function spawnCactus(){ obstacles.push({type:'cactus', x: canvas.width, w: 20, h: 40}); }
+function spawnBird(){ obstacles.push({type:'bird', x: canvas.width, y: GROUND - 70, w: 30, h: 20, flap:0}); }
+
+/* sprites */
+let spriteSheet = null;
+let spritesReady = false;
+
+function makeSprites(){
+  if (spritesReady) return;
+  const PW = 16, PH = 16;
+  const sheet = document.createElement('canvas');
+  sheet.width = PW * 4;
+  sheet.height = PH;
+  const sctx = sheet.getContext('2d');
+
+  function px(x,y,c){ sctx.fillStyle = c; sctx.fillRect(x,y,1,1); }
+
+  // draw run frames (0..2)
+  function drawFrame(off, leg){
+    for(let y=4;y<10;y++) for(let x=2;x<10;x++) px(off + x, y, '#5b5b5b');
+    for(let y=3;y<7;y++) px(off+10, y, '#5b5b5b');
+    px(off+11,4,'#fff');
+    if (leg === 0){
+      px(off+3,10,'#5b5b5b'); px(off+4,11,'#5b5b5b');
+      px(off+7,11,'#5b5b5b'); px(off+8,10,'#5b5b5b');
+    } else {
+      px(off+3,11,'#5b5b5b'); px(off+4,10,'#5b5b5b');
+      px(off+7,10,'#5b5b5b'); px(off+8,11,'#5b5b5b');
+    }
+  }
+
+  drawFrame(0,0);
+  drawFrame(PW,1);
+  drawFrame(PW*2,0);
+
+  // --- jump frame (frame 3) : compact jump pose ---
+sctx.clearRect(PW*3, 0, PW, PH);
+const off = PW * 3;
+const body = '#5b5b5b';
+
+// body (same size as run)
+for(let y=4;y<10;y++) for(let x=2;x<10;x++) px(off + x, y, body);
+// head
+for(let y=3;y<7;y++) px(off + 10, y, body);
+// eye
+px(off + 11, 4, '#fff');
+
+// tucked legs
+px(off + 4, 10, body);
+px(off + 5, 11, body);
+px(off + 7, 10, body);
+px(off + 8, 11, body);
+
+  // bird (two-frame sheet)
+  const bird = document.createElement('canvas');
+  bird.width = 32; bird.height = 8;
+  const bctx = bird.getContext('2d');
+  // frame 0
+  bctx.fillStyle = '#222';
+  bctx.fillRect(0,2,8,4);
+  bctx.fillRect(2,0,4,2);
+  // frame 1 (flap)
+  bctx.fillStyle = '#222';
+  bctx.fillRect(16,2,8,4);
+  bctx.fillRect(18,0,4,2);
+
+  // cactus
+  const cactus = document.createElement('canvas');
+  cactus.width = 16; cactus.height = 16;
+  const cctx = cactus.getContext('2d');
+  cctx.fillStyle = '#2e7d32';
+  cctx.fillRect(6,4,4,10);
+  cctx.fillRect(4,8,2,4);
+  cctx.fillRect(10,6,2,3);
+
+  spriteSheet = { sheet, PW, PH, bird, cactus };
+  spritesReady = true;
+}
+
+makeSprites();
+
+/* STEP 1 — add this helper function HERE */
+function drawBirdSprite(o){
+  const fx = (Math.floor(o.flap / 6) % 2) * 16;
+
+  ctx.save();
+
+  // Make bird visible in night mode
+  if (night){
+    ctx.filter = 'invert(1) brightness(1.2)';
+  }
+
+  ctx.drawImage(
+    spriteSheet.bird,
+    fx, 0, 16, 8,
+    o.x, o.y,
+    o.w, o.h
+  );
+
+  ctx.restore();
+}
+
+/* main loop */
+function loop(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  if (running){
+    frame++; score++; speed += 0.001;
+
+    if (frame % 800 === 0) night = !night;
+    if (frame % 90 === 0) spawnCactus();
+    if (frame % 300 === 0) spawnBird();
+
+    dino.vy += 0.8; dino.y += dino.vy;
+    if (dino.y >= GROUND - dino.h){
+      dino.y = GROUND - dino.h; dino.vy = 0; dino.grounded = true;
+    }
+    if (dino.grounded) dino.step = (dino.step + 1) % 20;
+
+    for (let o of obstacles){
+      o.x -= speed;
+      if (o.type === 'bird') o.flap = (o.flap + 1) % 20;
+      let oy = o.type === 'bird' ? o.y : GROUND - o.h;
+      if (
+  dino.x < o.x + o.w &&
+  dino.x + dino.w > o.x &&
+  dino.y < oy + o.h &&
+  dino.y + dino.h > oy
+){
+  running = false;
+  if (score > highScore) highScore = score;
+}
+    }
+    obstacles = obstacles.filter(o => o.x + o.w > -50);
+  }
+
+  // background
+  ctx.fillStyle = night ? '#1b1b2f' : '#f7f7f7';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // ground line
+  ctx.strokeStyle = night ? '#aaa' : '#555';
+  ctx.beginPath(); ctx.moveTo(0, GROUND); ctx.lineTo(canvas.width, GROUND); ctx.stroke();
+
+  // draw dino (use frame 3 while in air)
+  if (spritesReady && spriteSheet){
+    ctx.imageSmoothingEnabled = false;
+    const frameIndex = dino.grounded ? Math.floor(dino.step/7) % 3 : 3;
+    ctx.drawImage(spriteSheet.sheet, frameIndex * 16, 0, 16, 16, dino.x, dino.y, dino.w, dino.h);
+  } else {
+    ctx.fillStyle = '#555'; ctx.fillRect(dino.x, dino.y, dino.w, dino.h);
+  }
+
+  // draw obstacles (use bird flap frame)
+  for (let o of obstacles){
+    if (spritesReady && spriteSheet){
+      if (o.type === 'cactus'){
+        ctx.drawImage(spriteSheet.cactus, 0,0,16,16, o.x, GROUND - o.h, o.w, o.h);
+      } else {
+        drawBirdSprite(o);
+      }
+    } else {
+      if (o.type === 'cactus'){ ctx.fillStyle='#2e7d32'; ctx.fillRect(o.x, GROUND - o.h, o.w, o.h); }
+      else { ctx.fillStyle = night ? '#fff' : '#000'; ctx.fillRect(o.x, o.y, o.w, o.h); ctx.fillRect(o.x + 5, o.y - 5, 20, 4); }
+    }
+  }
+
+  // score
+  ctx.fillStyle = night ? '#fff' : '#000';
+  ctx.font = '16px Arial';
+  ctx.fillText('Score: ' + score, 10, 22);
+
+  if (!running){
+  ctx.fillStyle = night ? '#fff' : '#000';
+
+  // Game Over text
+  ctx.font = '21px Arial';
+  ctx.fillText('GAME OVER', canvas.width/2 - 60, 100);
+
+  // Score
+
+  // High Score (session only)
+  ctx.font = '15px Arial';
+  ctx.fillText('High Score: ' + highScore, canvas.width/2 - 55, 130);
+
+  // Retry button
+  const btnW = 120, btnH = 32;
+  const btnX = canvas.width/2 - btnW/2;
+  const btnY = 160;
+
+  ctx.strokeStyle = ctx.fillStyle;
+  ctx.strokeRect(btnX, btnY, btnW, btnH);
+
+  ctx.font = '16px Arial';
+  ctx.fillText('RETRY', btnX + 35, btnY + 22);
+}
+
+  requestAnimationFrame(loop);
+}
+
+/* init */
+resize();
+reset();
+loop();
+</script>
+</body>
+</html>

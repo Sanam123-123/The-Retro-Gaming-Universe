@@ -5,12 +5,30 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Dino Run — Sprites Fixed</title>
 <style>
+         .back-btn{
+  position:fixed;
+  top:15px;
+  left:15px;
+  z-index:9999;
+  text-decoration:none;
+  font-size:26px;
+  color:white;
+  background:rgba(0,0,0,0.6);
+  padding:8px 14px;
+  border-radius:50%;
+  border:2px solid white;
+}
+
+.back-btn:active{
+  background:white;
+  color:black;
+}
   html,body{height:100%;margin:0;background:#f7f7f7;font-family:Arial,Helvetica,sans-serif;touch-action:none}
   #c{display:block;margin:0 auto;touch-action:manipulation}
   @media(min-width:900px){#c{max-width:900px}}
 </style>
 </head>
-<body>
+<body><a href="index.html" class="back-btn">←</a>
 
 <canvas id="c"></canvas>
 

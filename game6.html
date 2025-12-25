@@ -1,0 +1,884 @@
+<!doctype html>
+<html lang="en" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blocky Blast Puzzle</title>
+  <script src="/_sdk/element_sdk.js"></script>
+  <style>
+          .back-btn{
+  position:fixed;
+  top:15px;
+  left:15px;
+  z-index:9999;
+  text-decoration:none;
+  font-size:26px;
+  color:white;
+  background:rgba(0,0,0,0.6);
+  padding:8px 14px;
+  border-radius:50%;
+  border:2px solid white;
+}
+
+.back-btn:active{
+  background:white;
+  color:black;
+}
+    body {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    
+    html {
+      height: 100%;
+    }
+    
+    * {
+      box-sizing: border-box;
+    }
+
+    #app {
+      min-height: 100%;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .header-container {
+      width: 100%;
+      max-width: 28rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .game-title {
+      font-size: 2.25rem;
+      font-weight: bold;
+      color: white;
+      text-align: center;
+      margin-bottom: 1rem;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .score-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 1rem;
+      padding: 1rem;
+      backdrop-filter: blur(10px);
+    }
+
+    .score-box {
+      text-align: center;
+    }
+
+    .score-label {
+      color: white;
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .score-value {
+      color: white;
+      font-size: 1.875rem;
+      font-weight: bold;
+    }
+
+    .grid-container {
+      position: relative;
+      margin-bottom: 1.5rem;
+    }
+
+    .game-grid {
+      display: grid;
+      gap: 0.25rem;
+      padding: 1rem;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 1.5rem;
+      backdrop-filter: blur(10px);
+      grid-template-columns: repeat(8, 1fr);
+      width: min(90vw, 400px);
+      height: min(90vw, 400px);
+    }
+
+    .grid-cell {
+      aspect-ratio: 1;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      border-radius: 0.5rem;
+      background: rgba(255, 255, 255, 0.1);
+      will-change: transform, background;
+    }
+
+    .grid-cell.filled {
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.3);
+      animation: cellAppear 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @keyframes cellAppear {
+      0% { transform: scale(0.5); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .grid-cell.clearing {
+      animation: clearPulse 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    @keyframes clearPulse {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.3) rotate(5deg); opacity: 0.7; filter: brightness(1.5); }
+      100% { transform: scale(0.5); opacity: 0; }
+    }
+
+    .grid-cell.highlight {
+      background: rgba(255, 255, 255, 0.4) !important;
+      transform: scale(0.92);
+      box-shadow: 0 0 15px rgba(255,255,255,0.5);
+    }
+
+    .grid-cell.invalid-highlight {
+      background: rgba(255, 0, 0, 0.4) !important;
+      animation: shake 0.3s ease;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-3px); }
+      75% { transform: translateX(3px); }
+    }
+
+    .score-popup-container {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .pieces-container {
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      max-width: 28rem;
+    }
+
+    .piece-container {
+      cursor: grab;
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+      touch-action: none;
+      will-change: transform;
+    }
+
+    .piece-container:hover {
+      transform: translateY(-4px) scale(1.02);
+    }
+
+    .piece-container:active {
+      cursor: grabbing;
+    }
+
+    .piece-container.dragging {
+      opacity: 0.85;
+      transform: scale(1.15) rotate(2deg);
+      z-index: 1000;
+      transition: none;
+      filter: drop-shadow(0 10px 20px rgba(0,0,0,0.3));
+    }
+
+    .piece-container.disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .piece-grid {
+      display: grid;
+      gap: 0.25rem;
+      padding: 0.75rem;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 1rem;
+      backdrop-filter: blur(10px);
+    }
+
+    .piece-cell {
+      aspect-ratio: 1;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      border-radius: 0.25rem;
+      width: 28px;
+      height: 28px;
+    }
+
+    .piece-container:hover .piece-cell {
+      transform: scale(1.05);
+    }
+
+    @keyframes scorePopup {
+      0% { transform: translate(-50%, -50%) translateY(0) scale(0.5); opacity: 0; }
+      20% { transform: translate(-50%, -50%) translateY(-10px) scale(1.2); opacity: 1; }
+      100% { transform: translate(-50%, -50%) translateY(-50px) scale(1.5); opacity: 0; }
+    }
+
+    .score-popup {
+      animation: scorePopup 1s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+      pointer-events: none;
+      position: absolute;
+      font-size: 2.25rem;
+      font-weight: bold;
+      color: white;
+      text-shadow: 2px 2px 8px rgba(0,0,0,0.7);
+      filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+    }
+
+    .game-over-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .game-over-overlay.active {
+      display: flex;
+      animation: fadeIn 0.3s ease forwards;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .game-over-content {
+      background: white;
+      border-radius: 1.5rem;
+      padding: 2rem;
+      text-align: center;
+      max-width: 24rem;
+      margin: 0 1rem;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      animation: slideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @keyframes slideUp {
+      from { 
+        transform: translateY(50px) scale(0.9);
+        opacity: 0;
+      }
+      to { 
+        transform: translateY(0) scale(1);
+        opacity: 1;
+      }
+    }
+
+    .game-over-emoji {
+      font-size: 3.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .game-over-title {
+      font-size: 1.875rem;
+      font-weight: bold;
+      margin-bottom: 0.5rem;
+      color: #667eea;
+    }
+
+    .game-over-subtitle {
+      color: #6b7280;
+      margin-bottom: 0.5rem;
+    }
+
+    .final-score {
+      font-size: 3rem;
+      font-weight: bold;
+      margin-bottom: 1.5rem;
+      color: #764ba2;
+    }
+
+    .restart-btn {
+      padding: 0.75rem 2rem;
+      border-radius: 9999px;
+      color: white;
+      font-weight: bold;
+      font-size: 1.125rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+      border: none;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+
+    .restart-btn:hover {
+      transform: scale(1.05);
+    }
+
+    .restart-btn:active {
+      transform: scale(0.95);
+    }
+  </style>
+  <style>@view-transition { navigation: auto; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+  <script src="https://cdn.tailwindcss.com" type="text/javascript"></script>
+ </head>
+ <body><a href="index.html" class="back-btn">←</a>
+  <main>
+   <div id="app"><!-- Header -->
+    <div class="header-container">
+     <h1 id="gameTitle" class="game-title">Blocky Blast Puzzle</h1>
+     <div class="score-container">
+      <div class="score-box">
+       <div id="scoreLabel" class="score-label">
+        Score
+       </div>
+       <div id="score" class="score-value">
+        0
+       </div>
+      </div>
+      <div class="score-box">
+       <div id="bestScoreLabel" class="score-label">
+        Best
+       </div>
+       <div id="bestScore" class="score-value">
+        0
+       </div>
+      </div>
+     </div>
+    </div><!-- Game Grid -->
+    <div class="grid-container">
+     <div id="grid" class="game-grid"></div><!-- Score popup container -->
+     <div id="scorePopupContainer" class="score-popup-container"></div>
+    </div><!-- Pieces Container -->
+    <div id="piecesContainer" class="pieces-container"></div><!-- Game Over Overlay -->
+    <div id="gameOverOverlay" class="game-over-overlay">
+     <div class="game-over-content">
+      <div class="game-over-emoji">
+       🎮
+      </div>
+      <h2 class="game-over-title">Game Over!</h2>
+      <p class="game-over-subtitle">Final Score</p>
+      <p id="finalScore" class="final-score">0</p><button id="restartBtn" class="restart-btn"> Play Again </button>
+     </div>
+    </div>
+   </div>
+  </main>
+  <script>
+    const GRID_SIZE = 8;
+    const COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2'];
+    
+    const defaultConfig = {
+      game_title: 'Block Blast Puzzle',
+      score_label: 'Score',
+      best_score_label: 'Best',
+      primary_color: '#667eea',
+      secondary_color: '#764ba2',
+      grid_background: '#ffffff',
+      text_color: '#ffffff',
+      accent_color: '#FF6B6B',
+      font_family: 'system-ui',
+      font_size: 16
+    };
+
+    let grid = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(null));
+    let currentPieces = [];
+    let score = 0;
+    let bestScore =  parseInt(localStorage.getItem('blockBlastBest')) || 0;
+    let draggedPiece = null;
+    let draggedElement = null;
+
+    const PIECE_SHAPES = [
+      [[1]], // Single
+      [[1,1]], // Horizontal 2
+      [[1],[1]], // Vertical 2
+      [[1,1,1]], // Horizontal 3
+      [[1],[1],[1]], // Vertical 3
+      [[1,1],[1,1]], // Square 2x2
+      [[1,1,1],[1,1,1],[1,1,1]], // Square 3x3
+      [[1,1,1,1]], // Horizontal 4
+      [[1],[1],[1],[1]], // Vertical 4
+      [[1,1,1],[1,0,0]], // L shape
+      [[1,1,1],[0,0,1]], // Reverse L
+      [[1,0],[1,1]], // Small L
+      [[0,1],[1,1]], // Small reverse L
+      [[1,1,0],[0,1,1]], // Z shape
+      [[0,1,1],[1,1,0]], // S shape
+      [[1,1,1],[0,1,0]], // T shape
+    ];
+
+    function init() {
+      createGrid();
+      updateScore();
+      generateNewPieces();
+      
+      document.getElementById('restartBtn').addEventListener('click', restartGame);
+    }
+
+    function createGrid() {
+      const gridElement = document.getElementById('grid');
+      gridElement.innerHTML = '';
+      
+      for (let row = 0; row < GRID_SIZE; row++) {
+        for (let col = 0; col < GRID_SIZE; col++) {
+          const cell = document.createElement('div');
+          cell.className = 'grid-cell rounded-lg';
+          cell.style.background = 'rgba(255, 255, 255, 0.1)';
+          cell.dataset.row = row;
+          cell.dataset.col = col;
+          gridElement.appendChild(cell);
+        }
+      }
+    }
+
+    function updateGridDisplay() {
+      const cells = document.querySelectorAll('.grid-cell');
+      cells.forEach(cell => {
+        const row = parseInt(cell.dataset.row);
+        const col = parseInt(cell.dataset.col);
+        if (grid[row][col]) {
+          cell.style.background = grid[row][col];
+          cell.classList.add('filled');
+        } else {
+          cell.style.background = 'rgba(255, 255, 255, 0.1)';
+          cell.classList.remove('filled');
+        }
+      });
+    }
+
+    function generateNewPieces() {
+      currentPieces = [];
+      for (let i = 0; i < 3; i++) {
+        const shape = PIECE_SHAPES[Math.floor(Math.random() * PIECE_SHAPES.length)];
+        const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+        currentPieces.push({ shape, color, used: false });
+      }
+      renderPieces();
+    }
+
+    function renderPieces() {
+      const container = document.getElementById('piecesContainer');
+      container.innerHTML = '';
+      
+      currentPieces.forEach((piece, index) => {
+        if (piece.used) return;
+        
+        const pieceContainer = document.createElement('div');
+        pieceContainer.className = 'piece-container';
+        pieceContainer.dataset.index = index;
+        
+        const pieceGrid = document.createElement('div');
+        pieceGrid.className = 'grid gap-1 p-3 bg-white bg-opacity-20 rounded-2xl backdrop-blur-sm';
+        pieceGrid.style.gridTemplateColumns = `repeat(${piece.shape[0].length}, 1fr)`;
+        
+        piece.shape.forEach(row => {
+          row.forEach(cell => {
+            const cellDiv = document.createElement('div');
+            cellDiv.className = 'piece-cell rounded';
+            cellDiv.style.width = '28px';
+            cellDiv.style.height = '28px';
+            if (cell === 1) {
+              cellDiv.style.background = piece.color;
+              cellDiv.style.boxShadow = 'inset 0 0 0 2px rgba(255,255,255,0.3)';
+            } else {
+              cellDiv.style.background = 'transparent';
+            }
+            pieceGrid.appendChild(cellDiv);
+          });
+        });
+        
+        pieceContainer.appendChild(pieceGrid);
+        
+        // Mouse events
+        pieceContainer.addEventListener('mousedown', (e) => startDrag(e, index));
+        
+        // Touch events
+        pieceContainer.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          startDrag(e, index);
+        });
+        
+        container.appendChild(pieceContainer);
+      });
+      
+      checkGameOver();
+    }
+
+    function startDrag(e, index) {
+      const piece = currentPieces[index];
+      if (piece.used) return;
+      
+      draggedPiece = { ...piece, index };
+      draggedElement = e.currentTarget;
+      
+      // Add slight delay for smooth transition
+      requestAnimationFrame(() => {
+        draggedElement.classList.add('dragging');
+      });
+      
+      document.addEventListener('mousemove', onDrag);
+      document.addEventListener('mouseup', onDragEnd);
+      document.addEventListener('touchmove', onDrag);
+      document.addEventListener('touchend', onDragEnd);
+    }
+
+    function onDrag(e) {
+      if (!draggedPiece) return;
+      
+      const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+      const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+      
+      const gridElement = document.getElementById('grid');
+      const gridRect = gridElement.getBoundingClientRect();
+      
+      if (clientX >= gridRect.left && clientX <= gridRect.right &&
+          clientY >= gridRect.top && clientY <= gridRect.bottom) {
+        
+        const cellWidth = gridRect.width / GRID_SIZE;
+        const cellHeight = gridRect.height / GRID_SIZE;
+        
+        const col = Math.floor((clientX - gridRect.left) / cellWidth);
+        const row = Math.floor((clientY - gridRect.top) / cellHeight);
+        
+        highlightPlacement(row, col, draggedPiece);
+      } else {
+        clearHighlight();
+      }
+    }
+
+    function onDragEnd(e) {
+      if (!draggedPiece) return;
+      
+      const clientX = e.type.includes('touch') ? e.changedTouches[0].clientX : e.clientX;
+      const clientY = e.type.includes('touch') ? e.changedTouches[0].clientY : e.clientY;
+      
+      const gridElement = document.getElementById('grid');
+      const gridRect = gridElement.getBoundingClientRect();
+      
+      if (clientX >= gridRect.left && clientX <= gridRect.right &&
+          clientY >= gridRect.top && clientY <= gridRect.bottom) {
+        
+        const cellWidth = gridRect.width / GRID_SIZE;
+        const cellHeight = gridRect.height / GRID_SIZE;
+        
+        const col = Math.floor((clientX - gridRect.left) / cellWidth);
+        const row = Math.floor((clientY - gridRect.top) / cellHeight);
+        
+        if (canPlacePiece(row, col, draggedPiece.shape)) {
+          placePiece(row, col, draggedPiece);
+        }
+      }
+      
+      clearHighlight();
+      if (draggedElement) {
+        draggedElement.classList.remove('dragging');
+      }
+      draggedPiece = null;
+      draggedElement = null;
+      
+      document.removeEventListener('mousemove', onDrag);
+      document.removeEventListener('mouseup', onDragEnd);
+      document.removeEventListener('touchmove', onDrag);
+      document.removeEventListener('touchend', onDragEnd);
+    }
+
+    function highlightPlacement(startRow, startCol, piece) {
+      clearHighlight();
+      
+      const canPlace = canPlacePiece(startRow, startCol, piece.shape);
+      
+      piece.shape.forEach((row, rIndex) => {
+        row.forEach((cell, cIndex) => {
+          if (cell === 1) {
+            const gridRow = startRow + rIndex;
+            const gridCol = startCol + cIndex;
+            if (gridRow >= 0 && gridRow < GRID_SIZE && gridCol >= 0 && gridCol < GRID_SIZE) {
+              const cellElement = document.querySelector(`[data-row="${gridRow}"][data-col="${gridCol}"]`);
+              if (cellElement) {
+                cellElement.classList.add(canPlace ? 'highlight' : 'invalid-highlight');
+              }
+            }
+          }
+        });
+      });
+    }
+
+    function clearHighlight() {
+      document.querySelectorAll('.grid-cell').forEach(cell => {
+        cell.classList.remove('highlight', 'invalid-highlight');
+      });
+    }
+
+    function canPlacePiece(startRow, startCol, shape) {
+      for (let r = 0; r < shape.length; r++) {
+        for (let c = 0; c < shape[r].length; c++) {
+          if (shape[r][c] === 1) {
+            const gridRow = startRow + r;
+            const gridCol = startCol + c;
+            if (gridRow < 0 || gridRow >= GRID_SIZE || gridCol < 0 || gridCol >= GRID_SIZE) {
+              return false;
+            }
+            if (grid[gridRow][gridCol] !== null) {
+              return false;
+            }
+          }
+        }
+      }
+      return true;
+    }
+
+    function placePiece(startRow, startCol, piece) {
+      let cellsPlaced = 0;
+      const cellsToFill = [];
+      
+      piece.shape.forEach((row, rIndex) => {
+        row.forEach((cell, cIndex) => {
+          if (cell === 1) {
+            cellsToFill.push({
+              row: startRow + rIndex,
+              col: startCol + cIndex,
+              color: piece.color
+            });
+            cellsPlaced++;
+          }
+        });
+      });
+      
+      // Animate cells filling in sequence
+      cellsToFill.forEach((cell, index) => {
+        setTimeout(() => {
+          grid[cell.row][cell.col] = cell.color;
+          const cellElement = document.querySelector(`[data-row="${cell.row}"][data-col="${cell.col}"]`);
+          if (cellElement) {
+            cellElement.style.background = cell.color;
+            cellElement.classList.add('filled');
+          }
+        }, index * 30);
+      });
+      
+      currentPieces[piece.index].used = true;
+      
+      score += cellsPlaced;
+      
+      setTimeout(() => {
+        checkAndClearLines();
+      }, cellsToFill.length * 30 + 50);
+      
+      const allUsed = currentPieces.every(p => p.used);
+      if (allUsed) {
+        setTimeout(generateNewPieces, 500);
+      } else {
+        setTimeout(renderPieces, 100);
+      }
+      
+      updateScore();
+    }
+
+    function checkAndClearLines() {
+      let clearedLines = 0;
+      const rowsToClear = [];
+      const colsToClear = [];
+      
+      for (let row = 0; row < GRID_SIZE; row++) {
+        if (grid[row].every(cell => cell !== null)) {
+          rowsToClear.push(row);
+          clearedLines++;
+        }
+      }
+      
+      for (let col = 0; col < GRID_SIZE; col++) {
+        if (grid.every(row => row[col] !== null)) {
+          colsToClear.push(col);
+          clearedLines++;
+        }
+      }
+      
+      if (clearedLines > 0) {
+        animateClear(rowsToClear, colsToClear);
+        
+        setTimeout(() => {
+          rowsToClear.forEach(row => {
+            grid[row].fill(null);
+          });
+          
+          colsToClear.forEach(col => {
+            for (let row = 0; row < GRID_SIZE; row++) {
+              grid[row][col] = null;
+            }
+          });
+          
+          const bonus = clearedLines * 10;
+          score += bonus;
+          showScorePopup(`+${bonus}`);
+          
+          updateGridDisplay();
+          updateScore();
+        }, 400);
+      }
+    }
+
+    function animateClear(rows, cols) {
+      rows.forEach(row => {
+        for (let col = 0; col < GRID_SIZE; col++) {
+          const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+          if (cell) cell.classList.add('clearing');
+        }
+      });
+      
+      cols.forEach(col => {
+        for (let row = 0; row < GRID_SIZE; row++) {
+          const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+          if (cell) cell.classList.add('clearing');
+        }
+      });
+      
+      setTimeout(() => {
+        document.querySelectorAll('.clearing').forEach(cell => {
+          cell.classList.remove('clearing');
+        });
+      }, 400);
+    }
+
+    function showScorePopup(text) {
+      const container = document.getElementById('scorePopupContainer');
+      const popup = document.createElement('div');
+      popup.className = 'score-popup absolute text-4xl font-bold text-white';
+      popup.textContent = text;
+      popup.style.top = '50%';
+      popup.style.left = '50%';
+      popup.style.transform = 'translate(-50%, -50%)';
+      popup.style.textShadow = '2px 2px 4px rgba(0,0,0,0.5)';
+      container.appendChild(popup);
+      
+      setTimeout(() => popup.remove(), 800);
+    }
+
+    function updateScore() {
+      document.getElementById('score').textContent = score;
+      if (score > bestScore) {
+        bestScore = score;
+        localStorage.setItem('blockBlastBest', bestScore);                
+      }
+      document.getElementById('bestScore').textContent = bestScore;
+    }
+
+    function checkGameOver() {
+      const availablePieces = currentPieces.filter(p => !p.used);
+      
+      for (const piece of availablePieces) {
+        for (let row = 0; row < GRID_SIZE; row++) {
+          for (let col = 0; col < GRID_SIZE; col++) {
+            if (canPlacePiece(row, col, piece.shape)) {
+              return false;
+            }
+          }
+        }
+      }
+      
+      if (availablePieces.length > 0) {
+        showGameOver();
+        return true;
+      }
+      
+      return false;
+    }
+
+    function showGameOver() {
+      document.getElementById('finalScore').textContent = score;
+      document.getElementById('gameOverOverlay').classList.add('active');
+    }
+
+    function restartGame() {
+      grid = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(null));
+      score = 0;
+      currentPieces = [];
+      
+      document.getElementById('gameOverOverlay').classList.remove('active');
+      
+      updateGridDisplay();
+      updateScore();
+      generateNewPieces();
+    }
+
+    async function onConfigChange(config) {
+      const gameTitle = config.game_title || defaultConfig.game_title;
+      const scoreLabel = config.score_label || defaultConfig.score_label;
+      const bestScoreLabel = config.best_score_label || defaultConfig.best_score_label;
+      const primaryColor = config.primary_color || defaultConfig.primary_color;
+      const secondaryColor = config.secondary_color || defaultConfig.secondary_color;
+      const fontFamily = config.font_family || defaultConfig.font_family;
+      const fontSize = config.font_size || defaultConfig.font_size;
+      
+      document.getElementById('gameTitle').textContent = gameTitle;
+      document.getElementById('scoreLabel').textContent = scoreLabel;
+      document.getElementById('bestScoreLabel').textContent = bestScoreLabel;
+      
+      const appDiv = document.getElementById('app');
+      appDiv.style.background = `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%)`;
+      
+      const baseFontStack = 'system-ui, -apple-system, sans-serif';
+      document.body.style.fontFamily = `${fontFamily}, ${baseFontStack}`;
+      
+      document.getElementById('gameTitle').style.fontSize = `${fontSize * 2.5}px`;
+      document.getElementById('scoreLabel').style.fontSize = `${fontSize * 0.875}px`;
+      document.getElementById('bestScoreLabel').style.fontSize = `${fontSize * 0.875}px`;
+      document.getElementById('score').style.fontSize = `${fontSize * 1.875}px`;
+      document.getElementById('bestScore').style.fontSize = `${fontSize * 1.875}px`;
+    }
+
+    if (window.elementSdk) {
+      window.elementSdk.init({
+        defaultConfig,
+        onConfigChange,
+        mapToCapabilities: (config) => ({
+          recolorables: [
+            {
+              get: () => config.primary_color || defaultConfig.primary_color,
+              set: (value) => {
+                config.primary_color = value;
+                window.elementSdk.setConfig({ primary_color: value });
+              }
+            },
+            {
+              get: () => config.secondary_color || defaultConfig.secondary_color,
+              set: (value) => {
+                config.secondary_color = value;
+                window.elementSdk.setConfig({ secondary_color: value });
+              }
+            }
+          ],
+          borderables: [],
+          fontEditable: {
+            get: () => config.font_family || defaultConfig.font_family,
+            set: (value) => {
+              config.font_family = value;
+              window.elementSdk.setConfig({ font_family: value });
+            }
+          },
+          fontSizeable: {
+            get: () => config.font_size || defaultConfig.font_size,
+            set: (value) => {
+              config.font_size = value;
+              window.elementSdk.setConfig({ font_size: value });
+            }
+          }
+        }),
+        mapToEditPanelValues: (config) => new Map([
+          ['game_title', config.game_title || defaultConfig.game_title],
+          ['score_label', config.score_label || defaultConfig.score_label],
+          ['best_score_label', config.best_score_label || defaultConfig.best_score_label]
+        ])
+      });
+    }
+
+    init();
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9b38ebab579347d5',t:'MTc2NjY3MTgxMi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>

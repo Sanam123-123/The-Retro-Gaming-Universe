@@ -1,0 +1,1037 @@
+<!doctype html>
+<html lang="en" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Candy Match Game</title>
+  <script src="/_sdk/element_sdk.js"></script>
+  <style>
+    body {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Comic Sans MS', cursive, sans-serif;
+      height: 100%;
+      overflow: auto;
+      touch-action: none;
+    }
+    
+    .game-wrapper {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .game-container {
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 600px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    
+    .game-header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    
+    .game-title {
+      font-size: 48px;
+      font-weight: bold;
+      background: linear-gradient(45deg, #ff6b6b, #ffd93d, #6bcf7f, #4ecdc4);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin: 0;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    
+    .level-info {
+      text-align: center;
+      margin: 10px 0;
+      padding: 10px;
+      background: linear-gradient(135deg, #ffd93d 0%, #ff8e53 100%);
+      border-radius: 10px;
+      color: white;
+      font-size: 18px;
+      font-weight: bold;
+    }
+    
+    .quest-info {
+      text-align: center;
+      margin: 10px 0;
+      padding: 15px;
+      background: rgba(102, 126, 234, 0.1);
+      border-radius: 10px;
+      border: 2px solid #667eea;
+    }
+    
+    .quest-title {
+      font-size: 16px;
+      font-weight: bold;
+      color: #667eea;
+      margin-bottom: 5px;
+    }
+    
+    .quest-progress {
+      font-size: 24px;
+      font-weight: bold;
+      color: #333;
+    }
+    
+    .game-stats {
+      display: flex;
+      justify-content: space-around;
+      margin: 20px 0;
+      gap: 20px;
+    }
+    
+    .stat-box {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 15px 30px;
+      border-radius: 15px;
+      text-align: center;
+      flex: 1;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+    
+    .stat-label {
+      font-size: 14px;
+      opacity: 0.9;
+      margin-bottom: 5px;
+    }
+    
+    .stat-value {
+      font-size: 32px;
+      font-weight: bold;
+    }
+    
+    .game-board {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 8px;
+      background: #f0f0f0;
+      padding: 15px;
+      border-radius: 15px;
+      margin: 20px 0;
+      aspect-ratio: 1;
+      touch-action: none;
+    }
+    
+    .candy {
+      aspect-ratio: 1;
+      border-radius: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      transition: transform 0.2s, box-shadow 0.2s;
+      background: white;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      user-select: none;
+      min-width: 0;
+      touch-action: none;
+    }
+    
+    .candy:hover {
+      transform: scale(1.1);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+    }
+    
+    .candy.selected {
+      transform: scale(1.15);
+      box-shadow: 0 0 20px rgba(102, 126, 234, 0.6);
+      border: 3px solid #667eea;
+    }
+    
+    .candy.matching {
+      animation: pulse 0.5s ease-in-out;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.2); }
+    }
+    
+    .candy.falling {
+      animation: fall 0.5s ease-in;
+    }
+    
+    @keyframes fall {
+      from { transform: translateY(-100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    
+    .button-container {
+      text-align: center;
+      margin-top: 20px;
+    }
+    
+    .new-game-btn {
+      background: linear-gradient(135deg, #ff6b6b 0%, #ff8e53 100%);
+      color: white;
+      border: none;
+      padding: 15px 40px;
+      border-radius: 25px;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .new-game-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255, 107, 107, 0.6);
+    }
+    
+    .new-game-btn:active {
+      transform: translateY(0);
+    }
+    
+    .message {
+      text-align: center;
+      margin-top: 15px;
+      font-size: 18px;
+      font-weight: bold;
+      color: #667eea;
+      min-height: 27px;
+    }
+    
+    .level-complete-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    
+    .level-complete-modal {
+      background: white;
+      padding: 40px;
+      border-radius: 20px;
+      text-align: center;
+      max-width: 400px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+    
+    .level-complete-title {
+      font-size: 36px;
+      font-weight: bold;
+      color: #667eea;
+      margin-bottom: 20px;
+    }
+    
+    .level-complete-text {
+      font-size: 18px;
+      color: #333;
+      margin-bottom: 30px;
+    }
+    
+    .next-level-btn {
+      background: linear-gradient(135deg, #6bcf7f 0%, #4ecdc4 100%);
+      color: white;
+      border: none;
+      padding: 15px 40px;
+      border-radius: 25px;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(107, 207, 127, 0.4);
+      transition: transform 0.2s;
+    }
+    
+    .next-level-btn:hover {
+      transform: translateY(-2px);
+    }
+    /* ===== CONFETTI ===== */
+.confetti {
+  position: fixed;
+  top: -10px;
+  width: 10px;
+  height: 14px;
+  z-index: 3000;
+  animation: confettiFall linear forwards;
+}
+
+@keyframes confettiFall {
+  to {
+    transform: translateY(110vh) rotate(720deg);
+  }
+}
+  </style>
+  <style>@view-transition { navigation: auto; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+  <script src="https://cdn.tailwindcss.com" type="text/javascript"></script>
+ </head>
+ <body class="h-full">
+  <div class="game-wrapper h-full">
+   <div class="game-container">
+    <header class="game-header">
+     <h1 class="game-title" id="gameTitle">Candy Match</h1>
+    </header>
+    <div class="level-info" id="levelInfo"><span id="levelLabel">Level</span> <span id="levelNumber">1</span>
+    </div>
+    <div class="quest-info">
+     <div class="quest-title" id="questTitle">
+      Collect 100 Points
+     </div>
+     <div class="quest-progress" id="questProgress">
+      0 / 100
+     </div>
+    </div>
+    <div class="game-stats">
+     <div class="stat-box">
+      <div class="stat-label" id="scoreLabel">
+       Score
+      </div>
+      <div class="stat-value" id="scoreValue">
+       0
+      </div>
+     </div>
+     <div class="stat-box">
+      <div class="stat-label" id="movesLabel">
+       Moves
+      </div>
+      <div class="stat-value" id="movesValue">
+       20
+      </div>
+     </div>
+    </div>
+    <div class="game-board" id="gameBoard"></div>
+    <div class="message" id="message"></div>
+    <div class="button-container"><button class="new-game-btn" id="newGameBtn">Restart Level</button>
+    </div>
+   </div>
+  </div>
+  <div class="level-complete-overlay" id="levelCompleteOverlay">
+   <div class="level-complete-modal">
+    <div class="level-complete-title">
+     🎉 Level Complete!
+    </div>
+    <div class="level-complete-text" id="levelCompleteText">
+     Great job! You completed the quest!
+    </div><button class="next-level-btn" id="nextLevelBtn">Next Level</button>
+   </div>
+  </div>
+  <div class="level-complete-overlay" id="gameOverOverlay">
+   <div class="level-complete-modal">
+    <div class="level-complete-title" style="color: #ff6b6b;">
+     💔 Game Over!
+    </div>
+    <div class="level-complete-text" id="gameOverText">
+     You ran out of moves! Try again.
+    </div><button class="next-level-btn" id="retryBtn" style="background: linear-gradient(135deg, #ff6b6b 0%, #ff8e53 100%);">Retry Level</button>
+   </div>
+  </div>
+  <script>
+    const BOARD_SIZE = 8;
+    const CANDIES = ['🍬', '🍭', '🍫', '🍩', '🍪', '🧁'];
+    
+    const LEVELS = [
+      { 
+        level: 1, 
+        questType: 'score', 
+        questTitle: 'Collect 150 Points', 
+        questGoal: 150, 
+        moves: 15
+      },
+      { 
+        level: 2, 
+        questType: 'matches', 
+        questTitle: 'Make 20 Matches', 
+        questGoal: 20, 
+        moves: 20
+      },
+      { 
+        level: 3, 
+        questType: 'score', 
+        questTitle: 'Collect 300 Points', 
+        questGoal: 300, 
+        moves: 20
+      },
+      { 
+        level: 4, 
+        questType: 'candy', 
+        questTitle: 'Collect 30 🍬 Candies', 
+        questGoal: 30, 
+        targetCandy: '🍬',
+        moves: 20 
+      },
+      { 
+        level: 5, 
+        questType: 'matches', 
+        questTitle: 'Make 35 Matches', 
+        questGoal: 35, 
+        moves: 25 
+      },
+      { 
+        level: 6, 
+        questType: 'score', 
+        questTitle: 'Collect 500 Points', 
+        questGoal: 500, 
+        moves: 28 
+      },
+      { 
+        level: 7, 
+        questType: 'candy', 
+        questTitle: 'Collect 40 🍩 Donuts', 
+        questGoal: 40, 
+        targetCandy: '🍩',
+        moves: 25 
+      },
+      { 
+        level: 8, 
+        questType: 'matches', 
+        questTitle: 'Make 50 Matches', 
+        questGoal: 50, 
+        moves: 32 
+      },
+      { 
+        level: 9, 
+        questType: 'score', 
+        questTitle: 'Collect 750 Points', 
+        questGoal: 750, 
+        moves: 35 
+      },
+      { 
+        level: 10, 
+        questType: 'candy', 
+        questTitle: 'Collect 50 🍭 Lollipops', 
+        questGoal: 50, 
+        targetCandy: '🍭',
+        moves: 30 
+      },
+      { 
+        level: 11, 
+        questType: 'score', 
+        questTitle: 'Collect 900 Points', 
+        questGoal: 900, 
+        moves: 38 
+      },
+      { 
+        level: 12, 
+        questType: 'candy', 
+        questTitle: 'Collect 55 🍫 Chocolates', 
+        questGoal: 55, 
+        targetCandy: '🍫',
+        moves: 32 
+      },
+      { 
+        level: 13, 
+        questType: 'matches', 
+        questTitle: 'Make 60 Matches', 
+        questGoal: 60, 
+        moves: 35 
+      },
+      { 
+        level: 14, 
+        questType: 'score', 
+        questTitle: 'Collect 1100 Points', 
+        questGoal: 1100, 
+        moves: 40 
+      },
+      { 
+        level: 15, 
+        questType: 'candy', 
+        questTitle: 'Collect 65 🍪 Cookies', 
+        questGoal: 65, 
+        targetCandy: '🍪',
+        moves: 35 
+      },
+      { 
+        level: 16, 
+        questType: 'matches', 
+        questTitle: 'Make 70 Matches', 
+        questGoal: 70, 
+        moves: 38 
+      },
+      { 
+        level: 17, 
+        questType: 'score', 
+        questTitle: 'Collect 1300 Points', 
+        questGoal: 1300, 
+        moves: 42 
+      },
+      { 
+        level: 18, 
+        questType: 'candy', 
+        questTitle: 'Collect 70 🧁 Cupcakes', 
+        questGoal: 70, 
+        targetCandy: '🧁',
+        moves: 38 
+      },
+      { 
+        level: 19, 
+        questType: 'matches', 
+        questTitle: 'Make 80 Matches', 
+        questGoal: 80, 
+        moves: 42 
+      },
+      { 
+        level: 20, 
+        questType: 'score', 
+        questTitle: 'Collect 1500 Points', 
+        questGoal: 1500, 
+        moves: 45 
+      }
+    ];
+    
+    const defaultConfig = {
+      game_title: 'Candy Match',
+      score_label: 'Score',
+      moves_label: 'Moves',
+      level_label: 'Level',
+      background_color: '#667eea',
+      surface_color: '#ffffff',
+      text_color: '#333333',
+      primary_action_color: '#ff6b6b',
+      secondary_action_color: '#764ba2',
+      font_family: 'Comic Sans MS',
+      font_size: 16
+    };
+    
+    let board = [];
+    let selectedCandy = null;
+    let score = 0;
+    let moves = 20;
+    let isProcessing = false;
+    let currentLevel = 0;
+    let questProgress = 0;
+    let matchCount = 0;
+    
+    function initLevel() {
+      const level = LEVELS[currentLevel];
+      board = [];
+      for (let row = 0; row < BOARD_SIZE; row++) {
+        board[row] = [];
+        for (let col = 0; col < BOARD_SIZE; col++) {
+          board[row][col] = getRandomCandy();
+        }
+      }
+      
+      while (hasMatches()) {
+        for (let row = 0; row < BOARD_SIZE; row++) {
+          for (let col = 0; col < BOARD_SIZE; col++) {
+            if (isPartOfMatch(row, col)) {
+              board[row][col] = getRandomCandy();
+            }
+          }
+        }
+      }
+      
+      score = 0;
+      moves = level.moves;
+      questProgress = 0;
+      matchCount = 0;
+      
+      updateDisplay();
+      updateQuestDisplay();
+      renderBoard();
+    }
+    
+    function updateQuestDisplay() {
+      const level = LEVELS[currentLevel];
+      document.getElementById('questTitle').textContent = level.questTitle;
+      document.getElementById('levelNumber').textContent = level.level;
+      
+      let progressText = '';
+      if (level.questType === 'score') {
+        progressText = `${score} / ${level.questGoal}`;
+      } else if (level.questType === 'matches') {
+        progressText = `${matchCount} / ${level.questGoal}`;
+      } else if (level.questType === 'candy') {
+        progressText = `${questProgress} / ${level.questGoal}`;
+      }
+      
+      document.getElementById('questProgress').textContent = progressText;
+    }
+    
+    function checkQuestComplete() {
+      const level = LEVELS[currentLevel];
+      let isComplete = false;
+      
+      if (level.questType === 'score') {
+        isComplete = score >= level.questGoal;
+      } else if (level.questType === 'matches') {
+        isComplete = matchCount >= level.questGoal;
+      } else if (level.questType === 'candy') {
+        isComplete = questProgress >= level.questGoal;
+      }
+      
+      if (isComplete) {
+        showLevelComplete();
+        launchConfetti();
+      }
+    }
+    function launchConfetti() {
+  const colors = ['#ff6b6b', '#ffd93d', '#6bcf7f', '#4ecdc4', '#667eea'];
+  const count = 120;
+
+  for (let i = 0; i < count; i++) {
+    const confetti = document.createElement('div');
+    confetti.className = 'confetti';
+
+    confetti.style.left = Math.random() * 100 + 'vw';
+    confetti.style.backgroundColor =
+      colors[Math.floor(Math.random() * colors.length)];
+    confetti.style.animationDuration =
+      2 + Math.random() * 2 + 's';
+
+    document.body.appendChild(confetti);
+
+    setTimeout(() => confetti.remove(), 4000);
+  }
+}
+    function showLevelComplete() {
+      const overlay = document.getElementById('levelCompleteOverlay');
+      const text = document.getElementById('levelCompleteText');
+      
+      if (currentLevel < LEVELS.length - 1) {
+        text.textContent = `Great job! You completed level ${LEVELS[currentLevel].level}!`;
+      } else {
+        text.textContent = `Amazing! You completed all levels! Final Score: ${score}`;
+        document.getElementById('nextLevelBtn').textContent = 'Play Again';
+      }
+      
+      overlay.style.display = 'flex';
+    }
+    
+    function getRandomCandy() {
+      return CANDIES[Math.floor(Math.random() * CANDIES.length)];
+    }
+    
+    let swipeStartCandy = null;
+    let swipeStartX = 0;
+    let swipeStartY = 0;
+    const MIN_SWIPE_DISTANCE = 30;
+    
+    function renderBoard() {
+      const gameBoard = document.getElementById('gameBoard');
+      gameBoard.innerHTML = '';
+      
+      for (let row = 0; row < BOARD_SIZE; row++) {
+        for (let col = 0; col < BOARD_SIZE; col++) {
+          const candy = document.createElement('div');
+          candy.className = 'candy';
+          candy.textContent = board[row][col];
+          candy.dataset.row = row;
+          candy.dataset.col = col;
+          
+          candy.addEventListener('mousedown', (e) => handleSwipeStart(row, col, e));
+          candy.addEventListener('touchstart', (e) => handleSwipeStart(row, col, e), { passive: false });
+          
+          gameBoard.appendChild(candy);
+        }
+      }
+      
+      document.addEventListener('mousemove', handleSwipeMove);
+      document.addEventListener('mouseup', handleSwipeEnd);
+      document.addEventListener('touchmove', handleSwipeMove, { passive: false });
+      document.addEventListener('touchend', handleSwipeEnd);
+    }
+    
+    function handleSwipeStart(row, col, event) {
+      if (isProcessing || moves <= 0) return;
+      
+      swipeStartCandy = { row, col };
+      
+      if (event.type === 'touchstart') {
+        swipeStartX = event.touches[0].clientX;
+        swipeStartY = event.touches[0].clientY;
+        event.preventDefault();
+      } else {
+        swipeStartX = event.clientX;
+        swipeStartY = event.clientY;
+      }
+      
+      const candyElement = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+      candyElement.classList.add('selected');
+    }
+    
+    function handleSwipeMove(event) {
+      if (!swipeStartCandy) return;
+      if (event.type === 'touchmove') {
+        event.preventDefault();
+      }
+    }
+    
+    function handleSwipeEnd(event) {
+      if (!swipeStartCandy || isProcessing || moves <= 0) {
+        swipeStartCandy = null;
+        return;
+      }
+      
+      let swipeEndX, swipeEndY;
+      
+      if (event.type === 'touchend') {
+        if (event.changedTouches.length === 0) {
+          swipeStartCandy = null;
+          return;
+        }
+        swipeEndX = event.changedTouches[0].clientX;
+        swipeEndY = event.changedTouches[0].clientY;
+      } else {
+        swipeEndX = event.clientX;
+        swipeEndY = event.clientY;
+      }
+      
+      const deltaX = swipeEndX - swipeStartX;
+      const deltaY = swipeEndY - swipeStartY;
+      
+      const prevElement = document.querySelector(`[data-row="${swipeStartCandy.row}"][data-col="${swipeStartCandy.col}"]`);
+      if (prevElement) prevElement.classList.remove('selected');
+      
+      const absDeltaX = Math.abs(deltaX);
+      const absDeltaY = Math.abs(deltaY);
+      
+      if (absDeltaX > MIN_SWIPE_DISTANCE || absDeltaY > MIN_SWIPE_DISTANCE) {
+        let targetRow = swipeStartCandy.row;
+        let targetCol = swipeStartCandy.col;
+        
+        if (absDeltaX > absDeltaY) {
+          if (deltaX > 0 && targetCol < BOARD_SIZE - 1) {
+            targetCol++;
+          } else if (deltaX < 0 && targetCol > 0) {
+            targetCol--;
+          }
+        } else {
+          if (deltaY > 0 && targetRow < BOARD_SIZE - 1) {
+            targetRow++;
+          } else if (deltaY < 0 && targetRow > 0) {
+            targetRow--;
+          }
+        }
+        
+        if (targetRow !== swipeStartCandy.row || targetCol !== swipeStartCandy.col) {
+          const targetCandy = { row: targetRow, col: targetCol };
+          swapCandies(swipeStartCandy, targetCandy);
+        }
+      }
+      
+      swipeStartCandy = null;
+    }
+    
+    async function swapCandies(candy1, candy2) {
+      isProcessing = true;
+      
+      const temp = board[candy1.row][candy1.col];
+      board[candy1.row][candy1.col] = board[candy2.row][candy2.col];
+      board[candy2.row][candy2.col] = temp;
+      
+      renderBoard();
+      
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      if (hasMatches()) {
+        moves--;
+        await processMatches();
+      } else {
+        moves--;
+        board[candy2.row][candy2.col] = board[candy1.row][candy1.col];
+        board[candy1.row][candy1.col] = temp;
+        renderBoard();
+        showMessage('No match! Try again.');
+      }
+      
+      updateDisplay();
+      updateQuestDisplay();
+      checkQuestComplete();
+      checkGameOver();
+      isProcessing = false;
+    }
+    
+    function hasMatches() {
+      for (let row = 0; row < BOARD_SIZE; row++) {
+        for (let col = 0; col < BOARD_SIZE; col++) {
+          if (isPartOfMatch(row, col)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+    
+    function isPartOfMatch(row, col) {
+      const candy = board[row][col];
+      
+      let horizontalCount = 1;
+      for (let c = col - 1; c >= 0 && board[row][c] === candy; c--) horizontalCount++;
+      for (let c = col + 1; c < BOARD_SIZE && board[row][c] === candy; c++) horizontalCount++;
+      
+      let verticalCount = 1;
+      for (let r = row - 1; r >= 0 && board[r][col] === candy; r--) verticalCount++;
+      for (let r = row + 1; r < BOARD_SIZE && board[r][col] === candy; r++) verticalCount++;
+      
+      return horizontalCount >= 3 || verticalCount >= 3;
+    }
+    
+    async function processMatches() {
+      let matchesFound = true;
+      let totalMatches = 0;
+      
+      while (matchesFound) {
+        const matches = findAllMatches();
+        matchesFound = matches.length > 0;
+        
+        if (matchesFound) {
+          totalMatches += matches.length;
+          matchCount++;
+          
+          const level = LEVELS[currentLevel];
+          if (level.questType === 'candy') {
+            matches.forEach(({ row, col }) => {
+              if (board[row][col] === level.targetCandy) {
+                questProgress++;
+              }
+            });
+          }
+          
+          highlightMatches(matches);
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          removeMatches(matches);
+          renderBoard();
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          dropCandies();
+          fillEmpty();
+          renderBoard();
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+      
+      if (totalMatches > 0) {
+        score += totalMatches * 10;
+        showMessage(`Great! +${totalMatches * 10} points!`);
+      }
+    }
+    
+    function findAllMatches() {
+      const matches = new Set();
+      
+      for (let row = 0; row < BOARD_SIZE; row++) {
+        for (let col = 0; col < BOARD_SIZE; col++) {
+          if (isPartOfMatch(row, col)) {
+            matches.add(`${row},${col}`);
+          }
+        }
+      }
+      
+      return Array.from(matches).map(pos => {
+        const [row, col] = pos.split(',').map(Number);
+        return { row, col };
+      });
+    }
+    
+    function highlightMatches(matches) {
+      matches.forEach(({ row, col }) => {
+        const element = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+        if (element) element.classList.add('matching');
+      });
+    }
+    
+    function removeMatches(matches) {
+      matches.forEach(({ row, col }) => {
+        board[row][col] = null;
+      });
+    }
+    
+    function dropCandies() {
+      for (let col = 0; col < BOARD_SIZE; col++) {
+        let emptyRow = BOARD_SIZE - 1;
+        for (let row = BOARD_SIZE - 1; row >= 0; row--) {
+          if (board[row][col] !== null) {
+            if (row !== emptyRow) {
+              board[emptyRow][col] = board[row][col];
+              board[row][col] = null;
+            }
+            emptyRow--;
+          }
+        }
+      }
+    }
+    
+    function fillEmpty() {
+      for (let row = 0; row < BOARD_SIZE; row++) {
+        for (let col = 0; col < BOARD_SIZE; col++) {
+          if (board[row][col] === null) {
+            board[row][col] = getRandomCandy();
+          }
+        }
+      }
+    }
+    
+    function updateDisplay() {
+      document.getElementById('scoreValue').textContent = score;
+      document.getElementById('movesValue').textContent = moves;
+    }
+    
+    function showMessage(text) {
+      const messageEl = document.getElementById('message');
+      messageEl.textContent = text;
+      setTimeout(() => {
+        messageEl.textContent = '';
+      }, 2000);
+    }
+    
+    function checkGameOver() {
+      if (moves <= 0) {
+        const level = LEVELS[currentLevel];
+        let questComplete = false;
+        
+        if (level.questType === 'score') {
+          questComplete = score >= level.questGoal;
+        } else if (level.questType === 'matches') {
+          questComplete = matchCount >= level.questGoal;
+        } else if (level.questType === 'candy') {
+          questComplete = questProgress >= level.questGoal;
+        }
+        
+        if (!questComplete) {
+          setTimeout(() => {
+            showGameOver();
+          }, 500);
+        }
+      }
+    }
+    
+    function showGameOver() {
+      const overlay = document.getElementById('gameOverOverlay');
+      const text = document.getElementById('gameOverText');
+      text.textContent = `You ran out of moves! Score: ${score}`;
+      overlay.style.display = 'flex';
+    }
+    
+    document.getElementById('newGameBtn').addEventListener('click', () => {
+      initLevel();
+      showMessage('Level restarted!');
+    });
+    
+    document.getElementById('nextLevelBtn').addEventListener('click', () => {
+      document.getElementById('levelCompleteOverlay').style.display = 'none';
+      
+      if (currentLevel < LEVELS.length - 1) {
+        currentLevel++;
+        initLevel();
+        showMessage(`Level ${LEVELS[currentLevel].level} started!`);
+      } else {
+        currentLevel = 0;
+        initLevel();
+        showMessage('Starting from Level 1!');
+      }
+    });
+    
+    document.getElementById('retryBtn').addEventListener('click', () => {
+      document.getElementById('gameOverOverlay').style.display = 'none';
+      initLevel();
+      showMessage('Level restarted!');
+    });
+    
+    async function onConfigChange(config) {
+      const customFont = config.font_family || defaultConfig.font_family;
+      const baseSize = config.font_size || defaultConfig.font_size;
+      const baseFontStack = 'cursive, sans-serif';
+      
+      document.getElementById('gameTitle').textContent = config.game_title || defaultConfig.game_title;
+      document.getElementById('scoreLabel').textContent = config.score_label || defaultConfig.score_label;
+      document.getElementById('movesLabel').textContent = config.moves_label || defaultConfig.moves_label;
+      document.getElementById('levelLabel').textContent = config.level_label || defaultConfig.level_label;
+      
+      document.getElementById('gameTitle').style.fontFamily = `${customFont}, ${baseFontStack}`;
+      document.getElementById('gameTitle').style.fontSize = `${baseSize * 3}px`;
+      
+      const statLabels = document.querySelectorAll('.stat-label');
+      statLabels.forEach(label => {
+        label.style.fontFamily = `${customFont}, ${baseFontStack}`;
+        label.style.fontSize = `${baseSize * 0.875}px`;
+      });
+      
+      document.body.style.fontFamily = `${customFont}, ${baseFontStack}`;
+    }
+    
+    if (window.elementSdk) {
+      window.elementSdk.init({
+        defaultConfig,
+        onConfigChange,
+        mapToCapabilities: (config) => ({
+          recolorables: [
+            {
+              get: () => config.background_color || defaultConfig.background_color,
+              set: (value) => {
+                config.background_color = value;
+                window.elementSdk.setConfig({ background_color: value });
+              }
+            },
+            {
+              get: () => config.surface_color || defaultConfig.surface_color,
+              set: (value) => {
+                config.surface_color = value;
+                window.elementSdk.setConfig({ surface_color: value });
+              }
+            },
+            {
+              get: () => config.text_color || defaultConfig.text_color,
+              set: (value) => {
+                config.text_color = value;
+                window.elementSdk.setConfig({ text_color: value });
+              }
+            },
+            {
+              get: () => config.primary_action_color || defaultConfig.primary_action_color,
+              set: (value) => {
+                config.primary_action_color = value;
+                window.elementSdk.setConfig({ primary_action_color: value });
+              }
+            },
+            {
+              get: () => config.secondary_action_color || defaultConfig.secondary_action_color,
+              set: (value) => {
+                config.secondary_action_color = value;
+                window.elementSdk.setConfig({ secondary_action_color: value });
+              }
+            }
+          ],
+          borderables: [],
+          fontEditable: {
+            get: () => config.font_family || defaultConfig.font_family,
+            set: (value) => {
+              config.font_family = value;
+              window.elementSdk.setConfig({ font_family: value });
+            }
+          },
+          fontSizeable: {
+            get: () => config.font_size || defaultConfig.font_size,
+            set: (value) => {
+              config.font_size = value;
+              window.elementSdk.setConfig({ font_size: value });
+            }
+          }
+        }),
+        mapToEditPanelValues: (config) => new Map([
+          ['game_title', config.game_title || defaultConfig.game_title],
+          ['score_label', config.score_label || defaultConfig.score_label],
+          ['moves_label', config.moves_label || defaultConfig.moves_label],
+          ['level_label', config.level_label || defaultConfig.level_label]
+        ])
+      });
+    }
+    
+    initLevel();
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9b3d4e4086d33e1c',t:'MTc2NjcxNzc5My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>

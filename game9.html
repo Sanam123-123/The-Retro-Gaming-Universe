@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pony Express: Swipe Edition</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+.back-btn{
+position:fixed;
+top: 15px;
+left:15px;
+z-index:9999;
+text-decoration:none;
+font-size: 26px;
+color:white;
+background:rgba(0,0,0,0.6);
+padding: 8px 14px;
+border-radius: 50%;
+border: 2px solid white;
+}
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #F4A460;
+            font-family: 'Press Start 2P', cursive;
+            user-select: none;
+            touch-action: none;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(to bottom, #87CEEB 0%, #E0F7FA 40%, #DEB887 40%, #D2691E 100%);
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .hud {
+            position: absolute;
+            top: 20px;
+            left: 80px;
+            color: #fff;
+            text-shadow: 2px 2px #000;
+            z-index: 10;
+            font-size: 16px;
+        }
+
+        .hud-right {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #fff;
+            text-shadow: 2px 2px #000;
+            z-index: 10;
+            font-size: 16px;
+        }
+
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 20;
+            text-align: center;
+        }
+
+        h1 {
+            color: #FFD700;
+            text-shadow: 4px 4px #8B4513;
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+
+        .btn {
+            background: #8B4513;
+            color: #FFD700;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 18px;
+            padding: 15px 30px;
+            border: 4px solid #DEB887;
+            border-radius: 4px;
+            cursor: pointer;
+            box-shadow: 0 6px 0 #5A2D0C;
+        }
+
+        .btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #5A2D0C;
+        }
+
+        #gameOverScreen { display: none; }
+
+        .controls-hint {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            text-align: center;
+            color: rgba(255,255,255,0.7);
+            font-size: 10px;
+            pointer-events: none;
+            z-index: 5;
+        }
+    </style>
+</head>
+<body><a href="index.html" class="back-btn">←</a>
+
+<div id="gameContainer">
+    <canvas id="gameCanvas"></canvas>
+
+    <div class="hud">MAIL: <span id="scoreVal">0</span></div>
+    
+
+    <div id="startScreen" class="screen">
+    <h1>PONY<br>EXPRESS</h1>
+    <p id="highScoreMenu" style="color: #FFD700; margin-bottom: 20px;">BEST: 0</p> 
+    <button class="btn" onclick="triggerCutscene()">START</button>
+</div>
+
+
+    <div id="gameOverScreen" class="screen">
+    <h1 style="color: #ff6b6b;">STUMBLED!</h1>
+    <p>Mail Delivered: <span id="finalScore">0</span></p>
+    
+    <div style="display: flex; flex-direction: column; gap: 15px;">
+        <button class="btn" onclick="triggerCutscene()">RETRY</button>
+        <button class="btn" style="background: #5A2D0C; font-size: 12px; padding: 10px;" onclick="returnToMenu()">MAIN MENU</button>
+    </div>
+</div>
+
+
+    <div class="controls-hint">Swipe UP or DOWN to Switch Lanes</div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    const scoreEl = document.getElementById('scoreVal');
+    
+    const startScreen = document.getElementById('startScreen');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const finalScoreEl = document.getElementById('finalScore');
+
+    const HORIZON_Y = window.innerHeight * 0.4;
+    let GAME_SPEED_BASE = 5; 
+    let gameSpeed = GAME_SPEED_BASE;
+    
+    let gameState = 'MENU'; 
+    let cutsceneTimer = 0;
+    let score = 0;
+    let frameCount = 0;
+    let animationId;
+
+    const player = {
+        x: 100,
+        y: 0,
+        width: 80,
+        height: 60,
+        laneSpeed: 15, // How fast it shifts when swiping
+        targetY: 0,
+        bounce: 0
+    };
+
+    let obstacles = [];
+    let items = [];
+    let decor = [];
+    let dust = [];
+
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // --- SWIPE LOGIC ---
+    let touchStartY = 0;
+    const swipeThreshold = 30; // Minimum distance to register a swipe
+
+    window.addEventListener('touchstart', e => {
+        touchStartY = e.touches[0].clientY;
+    }, {passive: false});
+
+    window.addEventListener('touchend', e => {
+        let touchEndY = e.changedTouches[0].clientY;
+        let deltaY = touchEndY - touchStartY;
+
+        if (gameState !== 'PLAYING') return;
+
+        if (Math.abs(deltaY) > swipeThreshold) {
+            if (deltaY < 0) movePlayer(-1); // Swipe Up
+            else movePlayer(1);            // Swipe Down
+        }
+    }, {passive: false});
+
+    // Keyboard fallback
+    window.addEventListener('keydown', e => {
+        if (gameState !== 'PLAYING') return;
+        if (e.code === 'ArrowUp') movePlayer(-1);
+        if (e.code === 'ArrowDown') movePlayer(1);
+    });
+
+    function movePlayer(dir) {
+        const laneSize = (canvas.height - HORIZON_Y) / 5;
+        player.targetY += dir * laneSize;
+        
+        // Clamp to ground
+        const groundTop = HORIZON_Y + 20;
+        const groundBottom = canvas.height - 80;
+        if (player.targetY < groundTop) player.targetY = groundTop;
+        if (player.targetY > groundBottom) player.targetY = groundBottom;
+    }
+
+    function resetGame() {
+        score = 0;
+        gameSpeed = GAME_SPEED_BASE;
+        frameCount = 0;
+        obstacles = [];
+        items = [];
+        decor = [];
+        dust = [];
+        player.x = 100;
+        player.y = canvas.height / 2 + 50;
+        player.targetY = player.y;
+        scoreEl.innerText = "0";
+        
+        for(let i=0; i<8; i++) spawnCloud(Math.random() * canvas.width);
+    }
+
+    function triggerCutscene() {
+        resetGame();
+        startScreen.style.display = 'none';
+        gameOverScreen.style.display = 'none';
+        gameState = 'CUTSCENE';
+        cutsceneTimer = 0;
+        if(animationId) cancelAnimationFrame(animationId);
+        animate();
+    }
+
+    function spawnCloud(xOffset) {
+        decor.push({ x: xOffset || canvas.width + 50, y: Math.random() * (HORIZON_Y - 50), speed: Math.random() * 0.4 + 0.1 });
+    }
+
+    function spawnObstacle() {
+        const groundTop = HORIZON_Y + 40;
+        const groundBottom = canvas.height - 80;
+        obstacles.push({
+            x: canvas.width + 50,
+            y: Math.random() * (groundBottom - groundTop) + groundTop,
+            width: 50,
+            height: 50,
+            markedForDeletion: false
+        });
+    }
+
+    function spawnMail() {
+        const groundTop = HORIZON_Y + 40;
+        const groundBottom = canvas.height - 80;
+        items.push({
+            x: canvas.width + 50,
+            y: Math.random() * (groundBottom - groundTop) + groundTop,
+            width: 45,
+            height: 35,
+            osc: Math.random() * Math.PI,
+            markedForDeletion: false
+        });
+    }
+
+    function update() {
+        if (gameState === 'CUTSCENE') {
+            cutsceneTimer++;
+            player.bounce = Math.sin(cutsceneTimer * 0.2) * 8;
+            if (cutsceneTimer > 90) gameState = 'PLAYING';
+            return;
+        }
+
+        if (gameState !== 'PLAYING') return;
+
+        // Smoothly slide to targetY
+        player.y += (player.targetY - player.y) * 0.15;
+        player.bounce = Math.sin(frameCount * 0.4) * 4;
+
+        // Dust Trail Logic
+        if (frameCount % 5 === 0) {
+            dust.push({
+                x: player.x,
+                y: player.y + player.height - 50,
+                size: Math.random() * 10 + 5,
+                opacity: 0.6
+            });
+        }
+        dust.forEach(d => {
+            d.x -= gameSpeed * 0.8;
+            d.y -= 0.5;
+            d.opacity -= 0.02;
+        });
+        dust = dust.filter(d => d.opacity > 0);
+
+        if (frameCount % 600 === 0) {
+            gameSpeed += 0.3;
+        }
+
+        if (frameCount % Math.floor(100 / (gameSpeed/6)) === 0) spawnObstacle();
+        if (frameCount % Math.floor(180 / (gameSpeed/6)) === 0) spawnMail();
+        if (Math.random() < 0.01) spawnCloud();
+
+        decor.forEach(d => d.x -= d.speed);
+        decor = decor.filter(d => d.x > -100);
+
+        obstacles.forEach(obs => {
+            obs.x -= gameSpeed;
+            if (rectIntersect(player.x + 15, player.y + 15, player.width - 30, player.height - 30, obs.x + 15, obs.y + 15, obs.width - 30, obs.height - 30)) {
+    gameState = 'GAMEOVER';
+    
+    // --- SAVE SCORE LOGIC ---
+    let savedBest = localStorage.getItem('ponyExpressBest') || 0;
+    if (score > savedBest) {
+        localStorage.setItem('ponyExpressBest', score);
+    }
+    // ------------------------
+
+    finalScoreEl.innerText = score;
+    gameOverScreen.style.display = 'flex';
+}
+
+
+            if (obs.x < -100) obs.markedForDeletion = true;
+        });
+        obstacles = obstacles.filter(o => !o.markedForDeletion);
+
+        items.forEach(item => {
+            item.x -= gameSpeed;
+            item.osc += 0.1;
+            item.y += Math.sin(item.osc) * 1.2;
+            if (rectIntersect(player.x, player.y, player.width, player.height, item.x, item.y, item.width, item.height)) {
+                score++;
+                scoreEl.innerText = score;
+                item.markedForDeletion = true;
+            }
+            if (item.x < -100) item.markedForDeletion = true;
+        });
+        items = items.filter(i => !i.markedForDeletion);
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Ground
+        ctx.fillStyle = "#DEB887";
+        ctx.fillRect(0, HORIZON_Y, canvas.width, canvas.height - HORIZON_Y);
+        
+        // Track Lines
+        ctx.strokeStyle = "rgba(139, 69, 19, 0.15)";
+        ctx.lineWidth = 2;
+        for (let y = HORIZON_Y; y < canvas.height; y += 45) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(canvas.width, y);
+            ctx.stroke();
+        }
+
+        // Dust Trail
+        dust.forEach(d => {
+            ctx.fillStyle = `rgba(160, 120, 80, ${d.opacity})`;
+            ctx.beginPath();
+            ctx.arc(d.x, d.y, d.size, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        // Clouds
+        ctx.font = "50px Arial";
+        decor.forEach(d => {
+            ctx.globalAlpha = 0.6;
+            ctx.fillText("☁️", d.x, d.y);
+            ctx.globalAlpha = 1.0;
+        });
+
+        // Depth Sorting
+        let renderList = [
+            ...obstacles.map(o => ({ type: 'obs', y: o.y + o.height, obj: o })),
+            ...items.map(i => ({ type: 'item', y: i.y + i.height, obj: i })),
+            { type: 'player', y: player.y + player.height, obj: player }
+        ].sort((a, b) => a.y - b.y);
+
+        renderList.forEach(r => {
+            if (r.type === 'player') {
+                ctx.save();
+                ctx.translate(player.x, player.y + player.bounce);
+                ctx.scale(-1, 1);
+                ctx.shadowColor = "rgba(0,0,0,0.15)";
+                ctx.shadowBlur = 4;
+                ctx.font = "50px Times New Roman"; 
+                ctx.textAlign = "center";
+                ctx.textBaseline = "bottom";
+                ctx.fillText("🐎", 0, 0);
+                ctx.restore();
+            } else if (r.type === 'obs') {
+                ctx.font = "55px Arial";
+                ctx.fillText("🌵", r.obj.x, r.obj.y);
+            } else if (r.type === 'item') {
+                ctx.font = "40px Arial";
+                ctx.shadowColor = "gold";
+                ctx.shadowBlur = 10;
+                ctx.fillText("✉️", r.obj.x, r.obj.y);
+                ctx.shadowBlur = 0;
+            }
+        });
+
+        if (gameState === 'CUTSCENE') {
+            ctx.fillStyle = "rgba(0,0,0,0.2)";
+            ctx.fillRect(0,0,canvas.width, canvas.height);
+            ctx.fillStyle = "#e6a709";
+            ctx.font = "40px 'Press Start 2P'";
+            ctx.textAlign = "center";
+            ctx.fillText("GIDDYUP!", canvas.width/2, canvas.height/2);
+        }
+    }
+
+    function animate() {
+        if (gameState === 'GAMEOVER') return;
+        frameCount++;
+        update();
+        draw();
+        animationId = requestAnimationFrame(animate);
+    }
+
+    function rectIntersect(x1, y1, w1, h1, x2, y2, w2, h2) {
+        return x2 < x1 + w1 && x2 + w2 > x1 && y2 < y1 + h1 && y2 + h2 > y1;
+    }
+    
+    resize();
+function returnToMenu() {
+    isRunning = false; 
+    gameState = 'MENU';
+    if(animationId) cancelAnimationFrame(animationId);
+    
+    // Refresh the high score display
+    let best = localStorage.getItem('ponyExpressBest') || 0;
+    document.getElementById('highScoreMenu').innerText = "BEST: " + best;
+
+    gameOverScreen.style.display = 'none';
+    startScreen.style.display = 'flex';
+    resetGame();
+    draw();
+}
+// Show high score immediately when page loads
+document.getElementById('highScoreMenu').innerText = "BEST: " + (localStorage.getItem('ponyExpressBest') || 0);
+
+</script>
+</body>
+</html>
